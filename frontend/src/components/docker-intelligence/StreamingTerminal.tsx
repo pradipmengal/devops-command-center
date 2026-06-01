@@ -2,53 +2,6 @@ import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { useAIStream } from '../../hooks/useAIStream'
 import { useAISettings } from '../../context/AISettingsContext'
 
-// Simulated Docker command responses for demo purposes
-const SIMULATED_RESPONSES = {
-  'docker ps': [
-    'CONTAINER ID   IMAGE              COMMAND                  CREATED        STATUS                  PORTS',
-    'a1b2c3d4e5f6   nginx:1.25-alpine  "/docker-entrypoint.…"   2 hours ago    Up 2 hours              0.0.0.0:80->80/tcp',
-    'b2c3d4e5f6a1   python:3.11-slim   "uvicorn main:app --…"   2 hours ago    Up 2 hours              0.0.0.0:8000->8000/tcp',
-    'c3d4e5f6a1b2   redis:7.2-alpine   "docker-entrypoint.s…"   2 hours ago    Up 2 hours (unhealthy)  0.0.0.0:6379->6379/tcp',
-  ],
-  'docker images': [
-    'REPOSITORY         TAG          IMAGE ID       CREATED        SIZE',
-    'nginx              1.25-alpine  abc123def456   2 days ago     41.1MB',
-    'python             3.11-slim    def456abc789   5 days ago     149MB',
-    'redis              7.2-alpine   789abc123def   1 week ago     34.2MB',
-    'postgres           16-alpine    123def456abc   1 week ago     268MB',
-  ],
-  'docker stats --no-stream': [
-    'CONTAINER ID   NAME           CPU %     MEM USAGE / LIMIT   MEM %     NET I/O',
-    'a1b2c3d4e5f6   web-server     2.40%     128MiB / 512MiB     25.00%    1.2MB / 890kB',
-    'b2c3d4e5f6a1   api-service    15.70%    256MiB / 1GiB       25.00%    5.4MB / 2.1MB',
-    'c3d4e5f6a1b2   redis-cache    0.80%     64MiB / 256MiB      25.00%    234kB / 156kB',
-  ],
-  'docker version': [
-    'Client: Docker Engine - Community',
-    ' Version:           24.0.7',
-    ' API version:       1.43',
-    ' Go version:        go1.20.10',
-    '',
-    'Server: Docker Engine - Community',
-    ' Engine:',
-    '  Version:          24.0.7',
-    '  API version:      1.43 (minimum version 1.12)',
-  ],
-  'help': [
-    'Docker Intelligence Terminal — Available commands:',
-    '',
-    '  docker ps              List running containers',
-    '  docker images          List images',
-    '  docker stats           Show container resource usage',
-    '  docker version         Show Docker version',
-    '',
-    '  explain: <command>     Get AI explanation of any Docker command',
-    '  explain: docker run    Explain docker run flags',
-    '',
-    'Type any docker command to see simulated output.',
-  ],
-}
-
 const LINE_COLORS = {
   input:  'text-cyan-400',
   output: 'text-gray-300',
@@ -113,7 +66,6 @@ export default function StreamingTerminal() {
         history: [],
       })
       if (result.text) {
-        // Split streamed text into lines for the terminal
         result.text.split('\n').forEach(line => appendLine('ai', line))
       } else if (result.error) {
         appendLine('error', `AI Error: ${result.error}`)
@@ -121,24 +73,35 @@ export default function StreamingTerminal() {
       return
     }
 
-    // Simulated Docker commands
-    const normalized = cmd.toLowerCase().trim()
-    const simulated = SIMULATED_RESPONSES[normalized] || SIMULATED_RESPONSES[cmd]
-    if (simulated) {
-      simulated.forEach(line => appendLine('output', line))
+    // Clear command
+    if (cmd === 'clear') {
+      setOutputLines([{ type: 'system', content: '🐳 Terminal cleared' }])
+      return
+    }
+
+    // Real Docker commands via backend
+    if (cmd.startsWith('docker ') || cmd === 'help') {
+      try {
+        const res = await fetch('/api/docker-intelligence/terminal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ command: cmd }),
+        })
+        const data = await res.json()
+        if (data.status === 'success') {
+          data.output.split('\n').forEach(line => appendLine('output', line))
+        } else {
+          appendLine('error', data.output || 'Command failed')
+        }
+      } catch (err) {
+        appendLine('error', `Error: ${err.message}`)
+      }
       return
     }
 
     // Unknown command
-    if (cmd.startsWith('docker ')) {
-      appendLine('output', `Simulated: ${cmd}`)
-      appendLine('system', 'Tip: Use "explain: <command>" for AI explanation')
-    } else if (cmd === 'clear') {
-      setOutputLines([{ type: 'system', content: '🐳 Terminal cleared' }])
-    } else {
-      appendLine('error', `Command not recognized: ${cmd}`)
-      appendLine('system', 'Type "help" for available commands')
-    }
+    appendLine('error', `Command not recognized: ${cmd}`)
+    appendLine('system', 'Type "help" for available commands')
   }, [inputValue, appendLine, getAIConfig, stream, reset])
 
   const handleKeyDown = (e) => {

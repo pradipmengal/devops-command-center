@@ -1,0 +1,14 @@
+INFO:     127.0.0.1:49819 - "POST /ai/test-connection HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50804 - "POST /docker-intelligence/explain HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64424 - "POST /docker-intelligence/compose HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62901 - "GET /docker-intelligence/containers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52506 - "GET /docker-intelligence/containers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60202 - "GET /docker-intelligence/containers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60652 - "GET /docker-intelligence/containers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53876 - "GET /docker-intelligence/containers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57111 - "GET /docker-intelligence/containers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49360 - "GET /docker-intelligence/containers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61689 - "GET /docker-intelligence/containers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61691 - "GET /docker-intelligence/containers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61693 - "GET /docker-intelligence/containers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61695 - "GET /docker-intelligence/containers HTTP/1.1" 200 OK

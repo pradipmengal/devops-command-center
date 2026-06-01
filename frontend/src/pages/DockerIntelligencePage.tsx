@@ -12,6 +12,7 @@ import AIAssistantPanel    from '../components/docker-intelligence/AIAssistantPa
 import RuntimeMonitor      from '../components/docker-intelligence/RuntimeMonitor'
 import ComposeGenerator    from '../components/docker-intelligence/ComposeGenerator'
 import StreamingTerminal   from '../components/docker-intelligence/StreamingTerminal'
+import AIContainerControl  from '../components/docker-intelligence/AIContainerControl'
 
 // ── Error Boundary ────────────────────────────────────────────────────────────
 
@@ -154,8 +155,27 @@ export default function DockerIntelligencePage() {
         </div>
       </div>
 
-      {/* Main content — 3-column grid on large screens, stacked on mobile */}
+      {/* Main content */}
       <div className="flex-1 flex flex-col min-h-0">
+        {activeTab === 'runtime' ? (
+          <div className="flex-1 grid grid-cols-1 xl:grid-cols-[1fr_380px] min-h-0 p-4 gap-4">
+            {/* Left: Runtime Monitor */}
+            <div className="flex flex-col min-h-0 gap-4">
+              <div className="flex-1 min-h-0">
+                <ModuleErrorBoundary label="Runtime Monitor">
+                  <RuntimeMonitor containers={containers} onRefresh={() => {}} />
+                </ModuleErrorBoundary>
+              </div>
+              <StreamingTerminal />
+            </div>
+            {/* Right: AI Chat Control */}
+            <div className="min-h-0">
+              <ModuleErrorBoundary label="AI Container Control">
+                <AIContainerControl />
+              </ModuleErrorBoundary>
+            </div>
+          </div>
+        ) : (
         <AIGate>
           <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_380px_340px] gap-4 p-4 min-h-0">
 
@@ -193,12 +213,6 @@ export default function DockerIntelligencePage() {
                   <ComposeGenerator />
                 </ModuleErrorBoundary>
               )}
-
-              {activeTab === 'runtime' && (
-                <ModuleErrorBoundary label="Runtime Monitor">
-                  <RuntimeMonitor containers={containers} onRefresh={() => {}} />
-                </ModuleErrorBoundary>
-              )}
             </div>
 
             {/* ── Column 2: Findings + Layer Visualizer ── */}
@@ -227,11 +241,14 @@ export default function DockerIntelligencePage() {
             </div>
           </div>
         </AIGate>
+        )}
 
-        {/* ── Bottom dock: Streaming Terminal ── */}
+        {/* ── Bottom dock: Streaming Terminal (shown for non-runtime tabs) ── */}
+        {activeTab !== 'runtime' && (
         <ModuleErrorBoundary label="Terminal">
           <StreamingTerminal />
         </ModuleErrorBoundary>
+        )}
       </div>
     </div>
   )
