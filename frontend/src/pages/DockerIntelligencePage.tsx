@@ -7,12 +7,11 @@ import DockerfileWorkspace from '../components/docker-intelligence/DockerfileWor
 import AnalysisDashboard   from '../components/docker-intelligence/AnalysisDashboard'
 import FindingsPanel       from '../components/docker-intelligence/FindingsPanel'
 import LayerVisualizer     from '../components/docker-intelligence/LayerVisualizer'
-import SecurityDashboard   from '../components/docker-intelligence/SecurityDashboard'
 import AIAssistantPanel    from '../components/docker-intelligence/AIAssistantPanel'
 import RuntimeMonitor      from '../components/docker-intelligence/RuntimeMonitor'
-import ComposeGenerator    from '../components/docker-intelligence/ComposeGenerator'
 import StreamingTerminal   from '../components/docker-intelligence/StreamingTerminal'
 import AIContainerControl  from '../components/docker-intelligence/AIContainerControl'
+import NetworkingPanel     from '../components/docker-intelligence/NetworkingPanel'
 
 // ── Error Boundary ────────────────────────────────────────────────────────────
 
@@ -59,10 +58,9 @@ class ModuleErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySta
 // ── Tab definitions ───────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: 'workspace', label: 'Workspace',  icon: '📝' },
-  { id: 'security',  label: 'Security',   icon: '🛡️' },
-  { id: 'compose',   label: 'Compose',    icon: '🐙' },
-  { id: 'runtime',   label: 'Runtime',    icon: '🖥️' },
+  { id: 'workspace',  label: 'Workspace',   icon: '📝' },
+  { id: 'runtime',    label: 'Runtime',      icon: '🖥️' },
+  { id: 'networking', label: 'Networking',   icon: '🌐' },
 ]
 
 // ── Page component ────────────────────────────────────────────────────────────
@@ -84,14 +82,12 @@ export default function DockerIntelligencePage() {
   const dockerfileContent  = useDockerIntelligenceStore(s => s.dockerfileContent)
   const analysisResults    = useDockerIntelligenceStore(s => s.analysisResults)
   const findings           = useDockerIntelligenceStore(s => s.findings)
-  const securityReport     = useDockerIntelligenceStore(s => s.securityReport)
   const containers         = useDockerIntelligenceStore(s => s.containers)
 
   // Store actions
   const setDockerfileContent = useDockerIntelligenceStore(s => s.setDockerfileContent)
   const setAnalysisResults   = useDockerIntelligenceStore(s => s.setAnalysisResults)
   const setFindings          = useDockerIntelligenceStore(s => s.setFindings)
-  const setSecurityReport    = useDockerIntelligenceStore(s => s.setSecurityReport)
 
   /**
    * Parse AI action results and update the store.
@@ -107,13 +103,12 @@ export default function DockerIntelligencePage() {
 
     if (actionId === 'secure' || actionId === 'scan-security') {
       // Parse security findings
-      tryParseSecurityReport(text, setSecurityReport)
-      setActiveTab('security')
+      tryParseSecurityReport(text, (report) => {})
     }
 
     // Always try to extract findings from any AI response
     tryParseFindings(text, setFindings)
-  }, [setAnalysisResults, setFindings, setSecurityReport])
+  }, [setAnalysisResults, setFindings])
 
   const handleApplyFix = useCallback((fix) => {
     if (fix) setDockerfileContent(fix)
@@ -157,7 +152,7 @@ export default function DockerIntelligencePage() {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-h-0">
-        {activeTab === 'runtime' ? (
+        {activeTab === 'runtime' && (
           <div className="flex-1 grid grid-cols-1 xl:grid-cols-[1fr_380px] min-h-0 p-4 gap-4">
             {/* Left: Runtime Monitor */}
             <div className="flex flex-col min-h-0 gap-4">
@@ -175,7 +170,17 @@ export default function DockerIntelligencePage() {
               </ModuleErrorBoundary>
             </div>
           </div>
-        ) : (
+        )}
+
+        {activeTab === 'networking' && (
+          <div className="flex-1 overflow-auto">
+            <ModuleErrorBoundary label="Networking Panel">
+              <NetworkingPanel />
+            </ModuleErrorBoundary>
+          </div>
+        )}
+
+        {activeTab === 'workspace' && (
         <AIGate>
           <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_380px_340px] gap-4 p-4 min-h-0">
 
@@ -199,20 +204,7 @@ export default function DockerIntelligencePage() {
                 </ModuleErrorBoundary>
               )}
 
-              {activeTab === 'security' && (
-                <ModuleErrorBoundary label="Security Dashboard">
-                  <SecurityDashboard
-                    securityReport={securityReport}
-                    dockerfileContent={dockerfileContent}
-                  />
-                </ModuleErrorBoundary>
-              )}
 
-              {activeTab === 'compose' && (
-                <ModuleErrorBoundary label="Compose Generator">
-                  <ComposeGenerator />
-                </ModuleErrorBoundary>
-              )}
             </div>
 
             {/* ── Column 2: Findings + Layer Visualizer ── */}
@@ -243,8 +235,8 @@ export default function DockerIntelligencePage() {
         </AIGate>
         )}
 
-        {/* ── Bottom dock: Streaming Terminal (shown for non-runtime tabs) ── */}
-        {activeTab !== 'runtime' && (
+        {/* ── Bottom dock: Streaming Terminal (workspace tab only) ── */}
+        {activeTab === 'workspace' && (
         <ModuleErrorBoundary label="Terminal">
           <StreamingTerminal />
         </ModuleErrorBoundary>

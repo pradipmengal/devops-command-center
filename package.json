@@ -1,0 +1,23 @@
+{
+  "name": "devops-command-center",
+  "version": "1.0.0",
+  "description": "A production-ready, single-page web application that bundles **15 commonly used DevOps utilities** into one clean, dark-mode interface. Built with a React frontend and a FastAPI backend, deployed with Docker Compose in a single command.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pradipmengal/devops-command-center.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/pradipmengal/devops-command-center/issues"
+  },
+  "homepage": "https://github.com/pradipmengal/devops-command-center#readme"
+}

@@ -1390,3 +1390,166 @@ def _get_mock_containers():
         },
     ]
     return {"status": "success", "source": "mock", "data": containers}
+
+
+# ── container-logs-cli (fallback log fetcher) ──────────────────────────────────
+
+@router.post("/container-logs-cli")
+async def container_logs_cli(payload: dict):
+    """Fetch container logs via docker SDK — fallback used by AILogAnalysis."""
+    container_id = (payload.get("container_id") or "").strip()
+    tail = int(payload.get("tail") or 100)
+
+    if not container_id:
+        return JSONResponse(status_code=422, content={"status": "error", "message": "container_id required"})
+
+    client = _get_docker_client()
+    if client is None:
+        return JSONResponse(status_code=503, content={"status": "error", "message": "Docker daemon unavailable"})
+
+    try:
+        container = client.containers.get(container_id)
+        raw = container.logs(tail=tail, timestamps=True).decode("utf-8", errors="replace").strip()
+        lines = raw.split("\n") if raw else []
+        return {"status": "success", "data": lines}
+    except Exception as exc:
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(exc)})
+
+
+# ── container-stats SSE stream ──────────────────────────────────────────────────
+
+import asyncio
+import json as _json_mod
+from fastapi.responses import StreamingResponse
+
+
+@router.get("/container-stats/{container_id}")
+async def container_stats_stream(container_id: str):
+    """SSE stream of live container stats (CPU, memory, network, block I/O)."""
+    client = _get_docker_client()
+    if client is None:
+        async def _err():
+            yield 'data: {"error": "Docker daemon unavailable"}\n\n'
+        return StreamingResponse(_err(), media_type="text/event-stream")
+
+    async def _generate():
+        import time
+        try:
+            container = client.containers.get(container_id)
+        except Exception as exc:
+            yield f'data: {{"error": "{str(exc)}"}}\n\n'
+            return
+
+        prev_net_rx = prev_net_tx = prev_blk_r = prev_blk_w = 0
+
+        for _ in range(120):  # ~2 min window, ~1s per sample
+            try:
+                stats = await asyncio.to_thread(container.stats, stream=False)
+            except Exception:
+                break
+
+            cpu = _cpu_percent_from_stats(stats)
+            mem_used, mem_limit = _memory_from_stats(stats)
+
+            # Network delta
+            net = stats.get("networks") or {}
+            net_rx = sum(n.get("rx_bytes", 0) for n in net.values())
+            net_tx = sum(n.get("tx_bytes", 0) for n in net.values())
+
+            # Block I/O delta
+            bio = stats.get("blkio_stats", {}).get("io_service_bytes_recursive") or []
+            blk_r = sum(b.get("value", 0) for b in bio if b.get("op", "").lower() == "read")
+            blk_w = sum(b.get("value", 0) for b in bio if b.get("op", "").lower() == "write")
+
+            point = {
+                "cpu": cpu,
+                "mem_used_mb": mem_used,
+                "mem_limit_mb": mem_limit,
+                "net_rx_bytes": max(0, net_rx - prev_net_rx),
+                "net_tx_bytes": max(0, net_tx - prev_net_tx),
+                "blk_read_bytes": max(0, blk_r - prev_blk_r),
+                "blk_write_bytes": max(0, blk_w - prev_blk_w),
+                "timestamp": time.strftime("%H:%M:%S"),
+            }
+
+            prev_net_rx, prev_net_tx = net_rx, net_tx
+            prev_blk_r, prev_blk_w = blk_r, blk_w
+
+            yield f"data: {_json_mod.dumps(point)}\n\n"
+            await asyncio.sleep(2)
+
+    return StreamingResponse(_generate(), media_type="text/event-stream")
+
+
+
+# ── container-logs-cli ─────────────────────────────────────────────────────────
+
+@router.post("/container-logs-cli")
+async def container_logs_cli(payload: dict):
+    """Fetch container logs via Docker SDK (fallback for AILogAnalysis)."""
+    container_id = (payload.get("container_id") or "").strip()
+    tail = int(payload.get("tail") or 100)
+    if not container_id:
+        return JSONResponse(status_code=422, content={"status": "error", "message": "container_id required"})
+    client = _get_docker_client()
+    if client is None:
+        return JSONResponse(status_code=503, content={"status": "error", "message": "Docker daemon unavailable"})
+    try:
+        c = client.containers.get(container_id)
+        raw = c.logs(tail=tail, timestamps=True).decode("utf-8", errors="replace").strip()
+        return {"status": "success", "data": raw.split("\n") if raw else []}
+    except Exception as exc:
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(exc)})
+
+
+# ── container-stats SSE stream ─────────────────────────────────────────────────
+
+import asyncio as _asyncio
+import json as _json_mod
+from fastapi.responses import StreamingResponse
+
+
+@router.get("/container-stats/{container_id}")
+async def container_stats_stream(container_id: str):
+    """Server-Sent Events stream of live container stats for ContainerStatsPanel."""
+    client = _get_docker_client()
+    if client is None:
+        async def _err():
+            yield 'data: {"error":"Docker daemon unavailable"}\n\n'
+        return StreamingResponse(_err(), media_type="text/event-stream")
+
+    async def _generate():
+        import time
+        try:
+            container = client.containers.get(container_id)
+        except Exception as exc:
+            yield f'data: {{"error":"{exc}"}}\n\n'
+            return
+
+        prev = {"rx": 0, "tx": 0, "br": 0, "bw": 0}
+        for _ in range(120):
+            try:
+                s = await _asyncio.to_thread(container.stats, stream=False)
+            except Exception:
+                break
+            cpu = _cpu_percent_from_stats(s)
+            mu, ml = _memory_from_stats(s)
+            net = s.get("networks") or {}
+            rx = sum(n.get("rx_bytes", 0) for n in net.values())
+            tx = sum(n.get("tx_bytes", 0) for n in net.values())
+            bio = s.get("blkio_stats", {}).get("io_service_bytes_recursive") or []
+            br = sum(b.get("value", 0) for b in bio if b.get("op", "").lower() == "read")
+            bw = sum(b.get("value", 0) for b in bio if b.get("op", "").lower() == "write")
+            point = {
+                "cpu": cpu, "mem_used_mb": mu, "mem_limit_mb": ml,
+                "net_rx_bytes": max(0, rx - prev["rx"]),
+                "net_tx_bytes": max(0, tx - prev["tx"]),
+                "blk_read_bytes": max(0, br - prev["br"]),
+                "blk_write_bytes": max(0, bw - prev["bw"]),
+                "timestamp": time.strftime("%H:%M:%S"),
+            }
+            prev = {"rx": rx, "tx": tx, "br": br, "bw": bw}
+            yield f"data: {_json_mod.dumps(point)}\n\n"
+            await _asyncio.sleep(2)
+
+    return StreamingResponse(_generate(), media_type="text/event-stream")
