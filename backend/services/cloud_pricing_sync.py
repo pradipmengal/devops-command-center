@@ -126,7 +126,7 @@ AZURE_BASE_URL = "https://prices.azure.com/api/retail/prices"
 
 async def fetch_azure_prices(client: httpx.AsyncClient) -> list:
     entries = []
-    for service_name, filter_query in AZURE_QUERIES[:8]:  # limit to avoid rate limits
+    for service_name, filter_query in AZURE_QUERIES:
         try:
             resp = await client.get(
                 AZURE_BASE_URL,
