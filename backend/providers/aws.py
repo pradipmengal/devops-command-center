@@ -11,15 +11,19 @@ Requirements:
 """
 
 import asyncio
+import json
 import logging
 from typing import List, Dict, Optional, Any
 from datetime import datetime, timezone
 import httpx
 
+import boto3
+from botocore.exceptions import ClientError, NoCredentialsError, PartialCredentialsError
+
 from providers.base import ProviderPlugin
 from models.service import ServiceEntry, ServiceCategory, PricingTier
 from services.infracost_client import InfracostClient
-from services.settings import get_infracost_api_key
+from services.settings import get_infracost_api_key, get_aws_credentials
 
 
 logger = logging.getLogger(__name__)
@@ -103,6 +107,22 @@ class AWSProvider(ProviderPlugin):
         self._infracost: Optional[InfracostClient] = (
             InfracostClient(api_key=api_key) if api_key else None
         )
+        self._aws_creds = get_aws_credentials()
+
+    def _get_boto3_pricing_client(self):
+        """Get boto3 pricing client if AWS credentials are configured."""
+        if not self._aws_creds:
+            return None
+        try:
+            return boto3.client(
+                'pricing',
+                aws_access_key_id=self._aws_creds['access_key_id'],
+                aws_secret_access_key=self._aws_creds['secret_access_key'],
+                region_name='us-east-1'  # AWS Pricing API is always us-east-1
+            )
+        except Exception as e:
+            logger.debug(f"Failed to initialize boto3 pricing client: {e}")
+            return None
     
     def _get_http_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client for API requests."""
@@ -145,23 +165,63 @@ class AWSProvider(ProviderPlugin):
     async def _enrich_with_live_prices(
         self, services: List[Dict[str, Any]], region: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        """Replace hardcoded prices with live Infracost data where available."""
+        """Replace hardcoded prices with live AWS Pricing API or Infracost data where available."""
+        target_region = region or "us-east-1"
+        
+        # 1. Try AWS Boto3 Pricing API if credentials are configured (Region-wise)
+        pricing_client = self._get_boto3_pricing_client()
+        if pricing_client:
+            try:
+                # Enrich EC2 services specifically with region-wise live pricing
+                for svc in services:
+                    if svc.get("metadata", {}).get("service_code") == "AmazonEC2" and "instance_type" in svc.get("metadata", {}):
+                        instance_type = svc["metadata"]["instance_type"]
+                        response = pricing_client.get_products(
+                            ServiceCode='AmazonEC2',
+                            Filters=[
+                                {'Type': 'TERM_MATCH', 'Field': 'instanceType', 'Value': instance_type},
+                                {'Type': 'TERM_MATCH', 'Field': 'regionCode', 'Value': target_region},
+                                {'Type': 'TERM_MATCH', 'Field': 'operatingSystem', 'Value': 'Linux'},
+                                {'Type': 'TERM_MATCH', 'Field': 'preInstalledSw', 'Value': 'NA'},
+                                {'Type': 'TERM_MATCH', 'Field': 'tenancy', 'Value': 'Shared'},
+                                {'Type': 'TERM_MATCH', 'Field': 'capacitystatus', 'Value': 'Used'}
+                            ],
+                            MaxResults=1
+                        )
+                        if response.get('PriceList'):
+                            price_data = json.loads(response['PriceList'][0])
+                            terms = price_data.get('terms', {}).get('OnDemand', {})
+                            for term_key, term_value in terms.items():
+                                price_dimensions = term_value.get('priceDimensions', {})
+                                for dim_key, dim_value in price_dimensions.items():
+                                    price_per_unit = dim_value.get('pricePerUnit', {}).get('USD')
+                                    if price_per_unit:
+                                        svc["price_usd"] = float(price_per_unit)
+                                        svc["is_fallback"] = False
+                                        svc["price_status"] = "live"
+                                        svc["fetched_at"] = datetime.now(timezone.utc).isoformat()
+                                        break
+                logger.info(f"AWS Boto3: enriched EC2 services with live region-wise prices for {target_region}")
+            except Exception as e:
+                logger.debug(f"AWS Boto3 pricing enrichment failed: {e}")
+
+        # 2. Fallback to Infracost for other services or if boto3 didn't enrich everything
         if not self._infracost or not self._infracost.is_configured():
             return services
 
-        target_region = region or "us-east-1"
         try:
             live = await self._infracost.get_prices("aws", target_region)
             if not live:
                 return services
 
             for svc in services:
-                cat = svc.get("category")
-                if cat in live:
-                    svc["price_usd"] = live[cat]["price_usd"]
-                    svc["is_fallback"] = False
-                    svc["price_status"] = "live"
-                    svc["fetched_at"] = datetime.now(timezone.utc).isoformat()
+                if svc.get("is_fallback"):  # Only enrich if not already enriched by boto3
+                    cat = svc.get("category")
+                    if cat in live:
+                        svc["price_usd"] = live[cat]["price_usd"]
+                        svc["is_fallback"] = False
+                        svc["price_status"] = "live"
+                        svc["fetched_at"] = datetime.now(timezone.utc).isoformat()
 
             live_count = sum(1 for s in services if not s["is_fallback"])
             logger.info(f"Infracost: enriched {live_count} AWS services with live prices")

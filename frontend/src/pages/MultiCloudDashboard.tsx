@@ -10,8 +10,8 @@
  *   - Requirement 14.3: Glassmorphism styling
  */
 
-import React, { useState, useCallback, useRef } from 'react';
-import { Menu, X, Key, CheckCircle, XCircle, Loader } from 'lucide-react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { Menu, X, Key, CheckCircle, XCircle, Loader, Save } from 'lucide-react';
 
 import ProviderSelector from '../components/multi-cloud/ProviderSelector';
 import RegionSelector from '../components/multi-cloud/RegionSelector';
@@ -49,6 +49,33 @@ const MultiCloudDashboard = () => {
   const [testMessage, setTestMessage] = useState('');
   const testAbortRef = useRef(null);
 
+  // AWS Credentials state
+  const [showAwsConfig, setShowAwsConfig] = useState(false);
+  const [awsAccessKey, setAwsAccessKey] = useState('');
+  const [awsSecretKey, setAwsSecretKey] = useState('');
+  const [awsTestStatus, setAwsTestStatus] = useState(null); // null | 'testing' | 'success' | 'error'
+  const [awsTestMessage, setAwsTestMessage] = useState('');
+  const [awsSaveStatus, setAwsSaveStatus] = useState(null); // null | 'saving' | 'success' | 'error'
+  const [awsSaveMessage, setAwsSaveMessage] = useState('');
+  const [maskedAwsKey, setMaskedAwsKey] = useState(null);
+  const awsTestAbortRef = useRef(null);
+
+  // Fetch AWS config status on mount
+  useEffect(() => {
+    const fetchAwsStatus = async () => {
+      try {
+        const resp = await fetch('/api/settings/aws-credentials');
+        const data = await resp.json();
+        if (data.configured && data.masked_access_key_id) {
+          setMaskedAwsKey(data.masked_access_key_id);
+        }
+      } catch (err) {
+        console.error('Failed to fetch AWS credentials status:', err);
+      }
+    };
+    fetchAwsStatus();
+  }, []);
+
   const handleTestApiKey = useCallback(async () => {
     if (!apiKey.trim()) return;
     if (testAbortRef.current) testAbortRef.current.abort();
@@ -79,6 +106,77 @@ const MultiCloudDashboard = () => {
       }
     }
   }, [apiKey]);
+
+  const handleTestAwsCredentials = useCallback(async () => {
+    if (!awsAccessKey.trim() || !awsSecretKey.trim()) return;
+    if (awsTestAbortRef.current) awsTestAbortRef.current.abort();
+    awsTestAbortRef.current = new AbortController();
+    const signal = awsTestAbortRef.current.signal;
+
+    setAwsTestStatus('testing');
+    setAwsTestMessage('');
+    setAwsSaveStatus(null);
+    try {
+      const resp = await fetch('/api/settings/aws-credentials/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          access_key_id: awsAccessKey.trim(), 
+          secret_access_key: awsSecretKey.trim() 
+        }),
+        signal,
+      });
+      const data = await resp.json();
+      if (data.valid) {
+        setAwsTestStatus('success');
+        setAwsTestMessage(data.message || 'Connection successful!');
+      } else {
+        setAwsTestStatus('error');
+        setAwsTestMessage(data.message || 'Connection failed');
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        setAwsTestStatus('error');
+        setAwsTestMessage(err.message);
+      }
+    }
+  }, [awsAccessKey, awsSecretKey]);
+
+  const handleSaveAwsCredentials = useCallback(async () => {
+    if (awsTestStatus !== 'success') return;
+    
+    setAwsSaveStatus('saving');
+    setAwsSaveMessage('');
+    try {
+      const resp = await fetch('/api/settings/aws-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          access_key_id: awsAccessKey.trim(), 
+          secret_access_key: awsSecretKey.trim() 
+        }),
+      });
+      
+      if (resp.ok) {
+        const data = await resp.json();
+        setAwsSaveStatus('success');
+        setAwsSaveMessage(data.message || 'Credentials saved successfully!');
+        // Fetch updated masked key
+        const statusResp = await fetch('/api/settings/aws-credentials');
+        const statusData = await statusResp.json();
+        if (statusData.masked_access_key_id) {
+          setMaskedAwsKey(statusData.masked_access_key_id);
+        }
+      } else {
+        const data = await resp.json();
+        setAwsSaveStatus('error');
+        setAwsSaveMessage(data.detail || 'Failed to save credentials');
+      }
+    } catch (err) {
+      setAwsSaveStatus('error');
+      setAwsSaveMessage(err.message);
+    }
+  }, [awsAccessKey, awsSecretKey, awsTestStatus]);
 
   // Comparison state
   const { comparisonServices, addToComparison, removeFromComparison, clearComparison, isInComparison } = useComparison();
@@ -214,50 +312,145 @@ const MultiCloudDashboard = () => {
         </div>
       )}
 
-      {/* Infracost API Key Configuration */}
-      <div className="mb-4">
-        <button
-          onClick={() => setShowApiConfig(!showApiConfig)}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-xs text-gray-400 hover:text-gray-200"
-        >
-          <Key className="w-3 h-3" />
-          {showApiConfig ? 'Hide' : 'Configure'} Infracost API Key
-        </button>
-        {showApiConfig && (
-          <div className="mt-2 flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10">
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => { setApiKey(e.target.value); setTestStatus(null); setTestMessage(''); }}
-              placeholder="Paste your Infracost API key..."
-              className="flex-1 px-3 py-1.5 bg-white/10 border border-white/20 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-400/50"
-            />
-            <button
-              onClick={handleTestApiKey}
-              disabled={!apiKey.trim() || testStatus === 'testing'}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-300"
-            >
-              {testStatus === 'testing' ? (
-                <Loader className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <CheckCircle className="w-3.5 h-3.5" />
+      {/* Configuration Section */}
+      <div className="mb-4 space-y-3">
+        {/* Infracost API Key Configuration */}
+        <div>
+          <button
+            onClick={() => setShowApiConfig(!showApiConfig)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-xs text-gray-400 hover:text-gray-200"
+          >
+            <Key className="w-3 h-3" />
+            {showApiConfig ? 'Hide' : 'Configure'} Infracost API Key
+          </button>
+          {showApiConfig && (
+            <div className="mt-2 flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10">
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(e) => { setApiKey(e.target.value); setTestStatus(null); setTestMessage(''); }}
+                placeholder="Paste your Infracost API key..."
+                className="flex-1 px-3 py-1.5 bg-white/10 border border-white/20 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-400/50"
+              />
+              <button
+                onClick={handleTestApiKey}
+                disabled={!apiKey.trim() || testStatus === 'testing'}
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-300"
+              >
+                {testStatus === 'testing' ? (
+                  <Loader className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <CheckCircle className="w-3.5 h-3.5" />
+                )}
+                Test Connection
+              </button>
+              {testStatus === 'success' && (
+                <span className="flex items-center gap-1 text-xs text-green-400">
+                  <CheckCircle className="w-3 h-3" />
+                  {testMessage}
+                </span>
               )}
-              Test Connection
-            </button>
-            {testStatus === 'success' && (
-              <span className="flex items-center gap-1 text-xs text-green-400">
-                <CheckCircle className="w-3 h-3" />
-                {testMessage}
+              {testStatus === 'error' && (
+                <span className="flex items-center gap-1 text-xs text-red-400">
+                  <XCircle className="w-3 h-3" />
+                  {testMessage}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* AWS Credentials Configuration */}
+        <div>
+          <button
+            onClick={() => {
+              setShowAwsConfig(!showAwsConfig);
+              if (!showAwsConfig && maskedAwsKey) {
+                setAwsAccessKey(maskedAwsKey); // Show masked key as placeholder/initial value
+              }
+            }}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-xs text-gray-400 hover:text-gray-200"
+          >
+            <Key className="w-3 h-3" />
+            {showAwsConfig ? 'Hide' : 'Configure'} AWS Credentials
+            {maskedAwsKey && !showAwsConfig && (
+              <span className="ml-2 px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 text-[10px]">
+                Configured: {maskedAwsKey}
               </span>
             )}
-            {testStatus === 'error' && (
-              <span className="flex items-center gap-1 text-xs text-red-400">
-                <XCircle className="w-3 h-3" />
-                {testMessage}
-              </span>
-            )}
-          </div>
-        )}
+          </button>
+          {showAwsConfig && (
+            <div className="mt-2 flex flex-col gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <input
+                  type="text"
+                  value={awsAccessKey}
+                  onChange={(e) => { setAwsAccessKey(e.target.value); setAwsTestStatus(null); setAwsTestMessage(''); setAwsSaveStatus(null); }}
+                  placeholder="AWS Access Key ID (e.g., AKIA...)"
+                  className="flex-1 px-3 py-1.5 bg-white/10 border border-white/20 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-400/50"
+                />
+                <input
+                  type="password"
+                  value={awsSecretKey}
+                  onChange={(e) => { setAwsSecretKey(e.target.value); setAwsTestStatus(null); setAwsTestMessage(''); setAwsSaveStatus(null); }}
+                  placeholder="AWS Secret Access Key"
+                  className="flex-1 px-3 py-1.5 bg-white/10 border border-white/20 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-400/50"
+                />
+              </div>
+              <div className="flex items-center gap-3 flex-wrap">
+                <button
+                  onClick={handleTestAwsCredentials}
+                  disabled={!awsAccessKey.trim() || !awsSecretKey.trim() || awsTestStatus === 'testing' || awsSaveStatus === 'saving'}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-300"
+                >
+                  {awsTestStatus === 'testing' ? (
+                    <Loader className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <CheckCircle className="w-3.5 h-3.5" />
+                  )}
+                  Test Connection
+                </button>
+                <button
+                  onClick={handleSaveAwsCredentials}
+                  disabled={awsTestStatus !== 'success' || awsSaveStatus === 'saving'}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 text-green-300"
+                >
+                  {awsSaveStatus === 'saving' ? (
+                    <Loader className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Save className="w-3.5 h-3.5" />
+                  )}
+                  Save Credentials
+                </button>
+                
+                {awsTestStatus === 'success' && (
+                  <span className="flex items-center gap-1 text-xs text-green-400">
+                    <CheckCircle className="w-3 h-3" />
+                    {awsTestMessage}
+                  </span>
+                )}
+                {awsTestStatus === 'error' && (
+                  <span className="flex items-center gap-1 text-xs text-red-400">
+                    <XCircle className="w-3 h-3" />
+                    {awsTestMessage}
+                  </span>
+                )}
+                {awsSaveStatus === 'success' && (
+                  <span className="flex items-center gap-1 text-xs text-green-400">
+                    <CheckCircle className="w-3 h-3" />
+                    {awsSaveMessage}
+                  </span>
+                )}
+                {awsSaveStatus === 'error' && (
+                  <span className="flex items-center gap-1 text-xs text-red-400">
+                    <XCircle className="w-3 h-3" />
+                    {awsSaveMessage}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Metrics Row */}

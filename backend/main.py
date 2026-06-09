@@ -16,6 +16,7 @@ from routes import containerize
 from routes import ssl
 from routes import terraform
 from routes import docker_networking
+from routes import settings
 
 app = FastAPI(
     title="DevOps Command Center",
@@ -63,6 +64,9 @@ app.include_router(ssl.router)
 app.include_router(terraform.router)
 app.include_router(docker_networking.router)
 
+# Settings router
+app.include_router(settings.router)
+
 
 # Global exception handler
 @app.exception_handler(Exception)
@@ -76,4 +80,3 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "version": "2.0.0"}
-

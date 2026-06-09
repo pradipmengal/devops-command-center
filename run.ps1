@@ -99,7 +99,7 @@ function Start-Backend {
     # Clear old logs
     Remove-Item $outFile, $errFile -ErrorAction SilentlyContinue
     Write-Step "Starting backend (uvicorn) ..."
-    $proc = Start-Process -FilePath $pythonExe -ArgumentList "-m uvicorn main:app --host 0.0.0.0 --port 8000 --reload" `
+    $proc = Start-Process -FilePath $pythonExe -ArgumentList "-m uvicorn main:app --host 0.0.0.0 --port 8080 --reload" `
         -WorkingDirectory $BACKEND_DIR -WindowStyle Hidden `
         -RedirectStandardOutput $outFile -RedirectStandardError $errFile -PassThru
     Start-Sleep -Seconds 4
