@@ -22,8 +22,9 @@ frontend/.vite/
 .env
 !.env.example
 
-# AWS Settings
+# Cloud Provider Settings
 backend/config/aws_settings.json
+backend/config/gcp_settings.json
 
 # IDE
 .vscode/

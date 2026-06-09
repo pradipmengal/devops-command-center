@@ -28,9 +28,9 @@ import { useComparison } from '../hooks/useComparison';
 
 const MultiCloudDashboard = () => {
   // Filter state
-  const [selectedProviders, setSelectedProviders] = useState([]);
-  const [selectedRegions, setSelectedRegions] = useState([]);
-  const [selectedCategories, setSelectedCategories] = useState([]);
+  const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
+  const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [currency, setCurrency] = useState('USD');
 
@@ -38,29 +38,39 @@ const MultiCloudDashboard = () => {
   const [activeTab, setActiveTab] = useState('catalog'); // catalog | compare | estimate
   const [showFilters, setShowFilters] = useState(true);
   const [showOptimization, setShowOptimization] = useState(true);
-  const [services, setServices] = useState([]);
-  const [optimizationSuggestions, setOptimizationSuggestions] = useState([]);
+  const [services, setServices] = useState<any[]>([]);
+  const [optimizationSuggestions, setOptimizationSuggestions] = useState<any[]>([]);
   const [syncStatus, setSyncStatus] = useState('idle'); // 'idle' | 'live' | 'demo' | 'mixed'
 
   // Infracost API key state
   const [showApiConfig, setShowApiConfig] = useState(false);
   const [apiKey, setApiKey] = useState('');
-  const [testStatus, setTestStatus] = useState(null); // null | 'testing' | 'success' | 'error'
+  const [testStatus, setTestStatus] = useState<string | null>(null);
   const [testMessage, setTestMessage] = useState('');
-  const testAbortRef = useRef(null);
+  const testAbortRef = useRef<AbortController | null>(null);
 
   // AWS Credentials state
   const [showAwsConfig, setShowAwsConfig] = useState(false);
   const [awsAccessKey, setAwsAccessKey] = useState('');
   const [awsSecretKey, setAwsSecretKey] = useState('');
-  const [awsTestStatus, setAwsTestStatus] = useState(null); // null | 'testing' | 'success' | 'error'
+  const [awsTestStatus, setAwsTestStatus] = useState<string | null>(null);
   const [awsTestMessage, setAwsTestMessage] = useState('');
-  const [awsSaveStatus, setAwsSaveStatus] = useState(null); // null | 'saving' | 'success' | 'error'
+  const [awsSaveStatus, setAwsSaveStatus] = useState<string | null>(null);
   const [awsSaveMessage, setAwsSaveMessage] = useState('');
-  const [maskedAwsKey, setMaskedAwsKey] = useState(null);
-  const awsTestAbortRef = useRef(null);
+  const [maskedAwsKey, setMaskedAwsKey] = useState<string | null>(null);
+  const awsTestAbortRef = useRef<AbortController | null>(null);
 
-  // Fetch AWS config status on mount
+  // GCP Credentials state
+  const [showGcpConfig, setShowGcpConfig] = useState(false);
+  const [gcpJsonContent, setGcpJsonContent] = useState('');
+  const [gcpTestStatus, setGcpTestStatus] = useState<string | null>(null);
+  const [gcpTestMessage, setGcpTestMessage] = useState('');
+  const [gcpSaveStatus, setGcpSaveStatus] = useState<string | null>(null);
+  const [gcpSaveMessage, setGcpSaveMessage] = useState('');
+  const [maskedGcpEmail, setMaskedGcpEmail] = useState<string | null>(null);
+  const gcpTestAbortRef = useRef<AbortController | null>(null);
+
+  // Fetch config status on mount
   useEffect(() => {
     const fetchAwsStatus = async () => {
       try {
@@ -73,7 +83,19 @@ const MultiCloudDashboard = () => {
         console.error('Failed to fetch AWS credentials status:', err);
       }
     };
+    const fetchGcpStatus = async () => {
+      try {
+        const resp = await fetch('/api/settings/gcp-credentials');
+        const data = await resp.json();
+        if (data.configured && data.masked_client_email) {
+          setMaskedGcpEmail(data.masked_client_email);
+        }
+      } catch (err) {
+        console.error('Failed to fetch GCP credentials status:', err);
+      }
+    };
     fetchAwsStatus();
+    fetchGcpStatus();
   }, []);
 
   const handleTestApiKey = useCallback(async () => {
@@ -99,7 +121,7 @@ const MultiCloudDashboard = () => {
         setTestStatus('error');
         setTestMessage(data.data?.message || 'Connection failed');
       }
-    } catch (err) {
+    } catch (err: any) {
       if (err.name !== 'AbortError') {
         setTestStatus('error');
         setTestMessage(err.message);
@@ -134,7 +156,7 @@ const MultiCloudDashboard = () => {
         setAwsTestStatus('error');
         setAwsTestMessage(data.message || 'Connection failed');
       }
-    } catch (err) {
+    } catch (err: any) {
       if (err.name !== 'AbortError') {
         setAwsTestStatus('error');
         setAwsTestMessage(err.message);
@@ -161,7 +183,6 @@ const MultiCloudDashboard = () => {
         const data = await resp.json();
         setAwsSaveStatus('success');
         setAwsSaveMessage(data.message || 'Credentials saved successfully!');
-        // Fetch updated masked key
         const statusResp = await fetch('/api/settings/aws-credentials');
         const statusData = await statusResp.json();
         if (statusData.masked_access_key_id) {
@@ -172,16 +193,80 @@ const MultiCloudDashboard = () => {
         setAwsSaveStatus('error');
         setAwsSaveMessage(data.detail || 'Failed to save credentials');
       }
-    } catch (err) {
+    } catch (err: any) {
       setAwsSaveStatus('error');
       setAwsSaveMessage(err.message);
     }
   }, [awsAccessKey, awsSecretKey, awsTestStatus]);
 
+  const handleTestGcpCredentials = useCallback(async () => {
+    if (!gcpJsonContent.trim()) return;
+    if (gcpTestAbortRef.current) gcpTestAbortRef.current.abort();
+    gcpTestAbortRef.current = new AbortController();
+    const signal = gcpTestAbortRef.current.signal;
+
+    setGcpTestStatus('testing');
+    setGcpTestMessage('');
+    setGcpSaveStatus(null);
+    try {
+      const resp = await fetch('/api/settings/gcp-credentials/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ json_content: gcpJsonContent.trim() }),
+        signal,
+      });
+      const data = await resp.json();
+      if (data.valid) {
+        setGcpTestStatus('success');
+        setGcpTestMessage(data.message || 'Connection successful!');
+      } else {
+        setGcpTestStatus('error');
+        setGcpTestMessage(data.message || 'Connection failed');
+      }
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        setGcpTestStatus('error');
+        setGcpTestMessage(err.message);
+      }
+    }
+  }, [gcpJsonContent]);
+
+  const handleSaveGcpCredentials = useCallback(async () => {
+    if (gcpTestStatus !== 'success') return;
+    
+    setGcpSaveStatus('saving');
+    setGcpSaveMessage('');
+    try {
+      const resp = await fetch('/api/settings/gcp-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ json_content: gcpJsonContent.trim() }),
+      });
+      
+      if (resp.ok) {
+        const data = await resp.json();
+        setGcpSaveStatus('success');
+        setGcpSaveMessage(data.message || 'Credentials saved successfully!');
+        const statusResp = await fetch('/api/settings/gcp-credentials');
+        const statusData = await statusResp.json();
+        if (statusData.masked_client_email) {
+          setMaskedGcpEmail(statusData.masked_client_email);
+        }
+      } else {
+        const data = await resp.json();
+        setGcpSaveStatus('error');
+        setGcpSaveMessage(data.detail || 'Failed to save credentials');
+      }
+    } catch (err: any) {
+      setGcpSaveStatus('error');
+      setGcpSaveMessage(err.message);
+    }
+  }, [gcpJsonContent, gcpTestStatus]);
+
   // Comparison state
   const { comparisonServices, addToComparison, removeFromComparison, clearComparison, isInComparison } = useComparison();
 
-  const handleProviderToggle = useCallback((providerId) => {
+  const handleProviderToggle = useCallback((providerId: string) => {
     setSelectedProviders(prev =>
       prev.includes(providerId)
         ? prev.filter(id => id !== providerId)
@@ -189,7 +274,7 @@ const MultiCloudDashboard = () => {
     );
   }, []);
 
-  const handleRegionToggle = useCallback((regionId) => {
+  const handleRegionToggle = useCallback((regionId: string) => {
     setSelectedRegions(prev =>
       prev.includes(regionId)
         ? prev.filter(id => id !== regionId)
@@ -197,7 +282,7 @@ const MultiCloudDashboard = () => {
     );
   }, []);
 
-  const handleCategoryToggle = useCallback((categoryId) => {
+  const handleCategoryToggle = useCallback((categoryId: string) => {
     setSelectedCategories(prev =>
       prev.includes(categoryId)
         ? prev.filter(id => id !== categoryId)
@@ -216,7 +301,7 @@ const MultiCloudDashboard = () => {
         const services = data.data.services;
         const csv = [
           ['Provider', 'Service', 'Category', 'Price (USD)', 'Unit', 'Tier', 'Region'].join(','),
-          ...services.map(s => [
+          ...services.map((s: any) => [
             s.provider, `"${s.service_name}"`, `"${s.category}"`,
             s.price_usd, s.unit, s.tier_label, s.region || ''
           ].join(','))
@@ -246,9 +331,8 @@ const MultiCloudDashboard = () => {
     }
   };
 
-  const handleServicesLoaded = useCallback((loadedServices) => {
+  const handleServicesLoaded = useCallback((loadedServices: any[]) => {
     setServices(loadedServices);
-    // Detect if any data is fallback (simulated) vs live from cloud APIs
     const anyFallback = loadedServices.some(s => s.is_fallback);
     const anyLive = loadedServices.some(s => !s.is_fallback);
     if (loadedServices.length > 0) {
@@ -256,11 +340,11 @@ const MultiCloudDashboard = () => {
     }
   }, []);
 
-  const handleAddToCompare = useCallback((service) => {
+  const handleAddToCompare = useCallback((service: any) => {
     addToComparison(service);
   }, [addToComparison]);
 
-  const isServiceInComparison = useCallback((service) => {
+  const isServiceInComparison = useCallback((service: any) => {
     return isInComparison(service);
   }, [isInComparison]);
 
@@ -366,7 +450,7 @@ const MultiCloudDashboard = () => {
             onClick={() => {
               setShowAwsConfig(!showAwsConfig);
               if (!showAwsConfig && maskedAwsKey) {
-                setAwsAccessKey(maskedAwsKey); // Show masked key as placeholder/initial value
+                setAwsAccessKey(maskedAwsKey);
               }
             }}
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-xs text-gray-400 hover:text-gray-200"
@@ -422,7 +506,6 @@ const MultiCloudDashboard = () => {
                   )}
                   Save Credentials
                 </button>
-                
                 {awsTestStatus === 'success' && (
                   <span className="flex items-center gap-1 text-xs text-green-400">
                     <CheckCircle className="w-3 h-3" />
@@ -445,6 +528,88 @@ const MultiCloudDashboard = () => {
                   <span className="flex items-center gap-1 text-xs text-red-400">
                     <XCircle className="w-3 h-3" />
                     {awsSaveMessage}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* GCP Credentials Configuration */}
+        <div>
+          <button
+            onClick={() => {
+              setShowGcpConfig(!showGcpConfig);
+              if (!showGcpConfig && maskedGcpEmail) {
+                setGcpJsonContent(`{"type": "service_account", "client_email": "${maskedGcpEmail}", ...}`);
+              }
+            }}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-xs text-gray-400 hover:text-gray-200"
+          >
+            <Key className="w-3 h-3" />
+            {showGcpConfig ? 'Hide' : 'Configure'} GCP Credentials
+            {maskedGcpEmail && !showGcpConfig && (
+              <span className="ml-2 px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 text-[10px]">
+                Configured: {maskedGcpEmail}
+              </span>
+            )}
+          </button>
+          {showGcpConfig && (
+            <div className="mt-2 flex flex-col gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10">
+              <textarea
+                value={gcpJsonContent}
+                onChange={(e) => { setGcpJsonContent(e.target.value); setGcpTestStatus(null); setGcpTestMessage(''); setGcpSaveStatus(null); }}
+                placeholder='Paste your entire GCP Service Account JSON here (e.g., {"type": "service_account", "project_id": "...", ...})'
+                rows={6}
+                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-xs font-mono placeholder-gray-500 focus:outline-none focus:border-blue-400/50 resize-y"
+              />
+              <div className="flex items-center gap-3 flex-wrap">
+                <button
+                  onClick={handleTestGcpCredentials}
+                  disabled={!gcpJsonContent.trim() || gcpTestStatus === 'testing' || gcpSaveStatus === 'saving'}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-300"
+                >
+                  {gcpTestStatus === 'testing' ? (
+                    <Loader className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <CheckCircle className="w-3.5 h-3.5" />
+                  )}
+                  Test Connection
+                </button>
+                <button
+                  onClick={handleSaveGcpCredentials}
+                  disabled={gcpTestStatus !== 'success' || gcpSaveStatus === 'saving'}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 text-green-300"
+                >
+                  {gcpSaveStatus === 'saving' ? (
+                    <Loader className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Save className="w-3.5 h-3.5" />
+                  )}
+                  Save Credentials
+                </button>
+                {gcpTestStatus === 'success' && (
+                  <span className="flex items-center gap-1 text-xs text-green-400">
+                    <CheckCircle className="w-3 h-3" />
+                    {gcpTestMessage}
+                  </span>
+                )}
+                {gcpTestStatus === 'error' && (
+                  <span className="flex items-center gap-1 text-xs text-red-400">
+                    <XCircle className="w-3 h-3" />
+                    {gcpTestMessage}
+                  </span>
+                )}
+                {gcpSaveStatus === 'success' && (
+                  <span className="flex items-center gap-1 text-xs text-green-400">
+                    <CheckCircle className="w-3 h-3" />
+                    {gcpSaveMessage}
+                  </span>
+                )}
+                {gcpSaveStatus === 'error' && (
+                  <span className="flex items-center gap-1 text-xs text-red-400">
+                    <XCircle className="w-3 h-3" />
+                    {gcpSaveMessage}
                   </span>
                 )}
               </div>
@@ -483,7 +648,6 @@ const MultiCloudDashboard = () => {
 
         {/* Main Content */}
         <div className="flex-1 min-w-0">
-          {/* Toggle Filters Button (mobile) */}
           <button
             onClick={() => setShowFilters(!showFilters)}
             className="mb-3 flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white text-sm transition-colors"
@@ -492,7 +656,6 @@ const MultiCloudDashboard = () => {
             {showFilters ? 'Hide Filters' : 'Show Filters'}
           </button>
 
-          {/* Tabs */}
           <div className="flex gap-1 mb-4 bg-white/5 rounded-xl p-1">
             {tabs.map(tab => (
               <button
@@ -509,7 +672,6 @@ const MultiCloudDashboard = () => {
             ))}
           </div>
 
-          {/* Tab Content */}
           {activeTab === 'catalog' && (
             <ServiceCatalog
               selectedProviders={selectedProviders}

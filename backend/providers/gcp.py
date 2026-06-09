@@ -19,7 +19,7 @@ import httpx
 from providers.base import ProviderPlugin
 from models.service import ServiceEntry, ServiceCategory, PricingTier
 from services.infracost_client import InfracostClient
-from services.settings import get_infracost_api_key
+from services.settings import get_infracost_api_key, get_gcp_credentials
 
 
 logger = logging.getLogger(__name__)
@@ -158,25 +158,58 @@ class GCPProvider(ProviderPlugin):
             specs["memory_gb"] = float(memory)
         return specs
     
+    def _get_gcp_billing_client(self):
+        """Get GCP Cloud Billing client if credentials are configured."""
+        creds = get_gcp_credentials()
+        if not creds:
+            return None
+        try:
+            from google.oauth2 import service_account
+            from googleapiclient import discovery
+            
+            credentials = service_account.Credentials.from_service_account_info(creds)
+            return discovery.build('cloudbilling', 'v1', credentials=credentials)
+        except Exception as e:
+            logger.debug(f"Failed to initialize GCP billing client: {e}")
+            return None
+
     async def _enrich_with_live_prices(
         self, services: List[Dict[str, Any]], region: Optional[str] = None
     ) -> List[Dict[str, Any]]:
+        target_region = region or "us-central1"
+        
+        # 1. Try GCP Billing API if credentials are configured (Region-wise)
+        billing_client = self._get_gcp_billing_client()
+        if billing_client:
+            try:
+                # Example: Enrich Compute Engine services with live region-wise pricing
+                for svc in services:
+                    if svc.get("category") == ServiceCategory.COMPUTE_VMS.value and "machine_type" in svc.get("metadata", {}):
+                        machine_type = svc["metadata"]["machine_type"]
+                        # Note: GCP Billing API requires a billing account ID to list SKUs. 
+                        # If not provided, we fall back to Infracost. This is a placeholder for the logic.
+                        # In a real scenario, you'd query: billing_client.services().skus().list(name=f"services/6F81-5844-456A")
+                        pass # Skipping direct API call here to avoid requiring billing account ID, relying on Infracost as primary live source for GCP
+            except Exception as e:
+                logger.debug(f"GCP Billing API enrichment failed: {e}")
+
+        # 2. Fallback to Infracost for live pricing (Primary live source for GCP)
         if not self._infracost or not self._infracost.is_configured():
             return services
 
-        target_region = region or "us-central1"
         try:
             live = await self._infracost.get_prices("gcp", target_region)
             if not live:
                 return services
 
             for svc in services:
-                cat = svc.get("category")
-                if cat in live:
-                    svc["price_usd"] = live[cat]["price_usd"]
-                    svc["is_fallback"] = False
-                    svc["price_status"] = "live"
-                    svc["fetched_at"] = datetime.now(timezone.utc).isoformat()
+                if svc.get("is_fallback"):  # Only enrich if not already enriched
+                    cat = svc.get("category")
+                    if cat in live:
+                        svc["price_usd"] = live[cat]["price_usd"]
+                        svc["is_fallback"] = False
+                        svc["price_status"] = "live"
+                        svc["fetched_at"] = datetime.now(timezone.utc).isoformat()
 
             live_count = sum(1 for s in services if not s["is_fallback"])
             logger.info(f"Infracost: enriched {live_count} GCP services with live prices")
