@@ -11,7 +11,7 @@
  */
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Menu, X, Key, CheckCircle, XCircle, Loader, Save } from 'lucide-react';
+import { Menu, X, Key, CheckCircle, XCircle, Loader, Save, Trash2 } from 'lucide-react';
 
 import ProviderSelector from '../components/multi-cloud/ProviderSelector';
 import RegionSelector from '../components/multi-cloud/RegionSelector';
@@ -263,6 +263,39 @@ const MultiCloudDashboard = () => {
     }
   }, [gcpJsonContent, gcpTestStatus]);
 
+  const handleRemoveAwsCredentials = useCallback(async () => {
+    try {
+      const resp = await fetch('/api/settings/aws-credentials', { method: 'DELETE' });
+      if (resp.ok) {
+        setMaskedAwsKey(null);
+        setAwsAccessKey('');
+        setAwsSecretKey('');
+        setAwsTestStatus(null);
+        setAwsTestMessage('');
+        setAwsSaveStatus(null);
+        setAwsSaveMessage('');
+      }
+    } catch (err: any) {
+      console.error('Failed to remove AWS credentials:', err);
+    }
+  }, []);
+
+  const handleRemoveGcpCredentials = useCallback(async () => {
+    try {
+      const resp = await fetch('/api/settings/gcp-credentials', { method: 'DELETE' });
+      if (resp.ok) {
+        setMaskedGcpEmail(null);
+        setGcpJsonContent('');
+        setGcpTestStatus(null);
+        setGcpTestMessage('');
+        setGcpSaveStatus(null);
+        setGcpSaveMessage('');
+      }
+    } catch (err: any) {
+      console.error('Failed to remove GCP credentials:', err);
+    }
+  }, []);
+
   // Comparison state
   const { comparisonServices, addToComparison, removeFromComparison, clearComparison, isInComparison } = useComparison();
 
@@ -506,6 +539,15 @@ const MultiCloudDashboard = () => {
                   )}
                   Save Credentials
                 </button>
+                {maskedAwsKey && (
+                  <button
+                    onClick={handleRemoveAwsCredentials}
+                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-300"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Remove
+                  </button>
+                )}
                 {awsTestStatus === 'success' && (
                   <span className="flex items-center gap-1 text-xs text-green-400">
                     <CheckCircle className="w-3 h-3" />
@@ -588,6 +630,15 @@ const MultiCloudDashboard = () => {
                   )}
                   Save Credentials
                 </button>
+                {maskedGcpEmail && (
+                  <button
+                    onClick={handleRemoveGcpCredentials}
+                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-300"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Remove
+                  </button>
+                )}
                 {gcpTestStatus === 'success' && (
                   <span className="flex items-center gap-1 text-xs text-green-400">
                     <CheckCircle className="w-3 h-3" />

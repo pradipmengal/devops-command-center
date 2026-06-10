@@ -11,10 +11,12 @@ from services.settings import (
     save_aws_credentials,
     is_aws_configured,
     get_masked_aws_access_key,
+    delete_aws_credentials,
     get_gcp_credentials,
     save_gcp_credentials,
     is_gcp_configured,
-    get_masked_gcp_client_email
+    get_masked_gcp_client_email,
+    delete_gcp_credentials
 )
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -108,6 +110,15 @@ async def save_aws_credentials_endpoint(req: AWSCredentialsRequest):
     return {"status": "success", "message": "AWS credentials saved successfully"}
 
 
+@router.delete("/aws-credentials")
+async def delete_aws_credentials_endpoint():
+    """Delete saved AWS credentials."""
+    success = delete_aws_credentials()
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete credentials")
+    return {"status": "success", "message": "AWS credentials removed successfully"}
+
+
 # ── GCP Endpoints ─────────────────────────────────────────────────────────────
 
 @router.get("/gcp-credentials", response_model=GCPCredentialsResponse)
@@ -172,3 +183,12 @@ async def save_gcp_credentials_endpoint(req: GCPCredentialsRequest):
         raise HTTPException(status_code=500, detail="Failed to save GCP credentials")
     
     return {"status": "success", "message": "GCP credentials saved successfully"}
+
+
+@router.delete("/gcp-credentials")
+async def delete_gcp_credentials_endpoint():
+    """Delete saved GCP credentials."""
+    success = delete_gcp_credentials()
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete credentials")
+    return {"status": "success", "message": "GCP credentials removed successfully"}

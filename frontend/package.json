@@ -23,6 +23,7 @@
     "react-resizable-panels": "^4.11.1",
     "react-router-dom": "^6.24.0",
     "reactflow": "^11.11.4",
+    "recharts": "^3.8.1",
     "tesseract.js": "^7.0.0",
     "typescript": "^6.0.3",
     "zustand": "^5.0.13"

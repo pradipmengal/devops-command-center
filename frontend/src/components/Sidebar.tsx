@@ -4,6 +4,7 @@ import { useAISettings } from '../context/AISettingsContext'
 
 const PRIMARY_TOOLS = [
   { path: '/ai-chat',              label: 'DevOps Chat',      icon: '💬', description: 'Ask AI anything' },
+  { path: '/ai-optimization',      label: 'AI Optimization',  icon: '🧠', description: 'FinOps, Logs & IaC Review' },
   { path: '/docker-intelligence',  label: 'Docker Intelligence', icon: '🐳', description: 'AI Docker Cockpit' },
   { path: '/containerize',         label: 'Containerize',    icon: '🚀', description: 'AI App → Docker + K8s + Helm' },
   { path: '/multi-cloud',          label: 'Multi-Cloud AI',  icon: '🌐', description: 'Cost Intelligence Platform' },

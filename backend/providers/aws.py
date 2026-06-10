@@ -23,7 +23,7 @@ from botocore.exceptions import ClientError, NoCredentialsError, PartialCredenti
 from providers.base import ProviderPlugin
 from models.service import ServiceEntry, ServiceCategory, PricingTier
 from services.infracost_client import InfracostClient
-from services.settings import get_infracost_api_key, get_aws_credentials
+from services.settings import get_infracost_api_key, get_aws_credentials, is_aws_configured, is_infracost_configured
 
 
 logger = logging.getLogger(__name__)
@@ -240,6 +240,12 @@ class AWSProvider(ProviderPlugin):
             f"Fetching AWS service catalog (region={region}, category={category}, "
             f"force_refresh={force_refresh})"
         )
+        
+        # Return empty catalog if no live pricing source is configured to prevent inaccurate fallback prices
+        if not is_aws_configured() and not is_infracost_configured():
+            logger.warning("AWS credentials and Infracost not configured. Returning empty catalog to prevent inaccurate pricing.")
+            return []
+            
         try:
             services = []
             ec2_services = await self._fetch_ec2_pricing(region)

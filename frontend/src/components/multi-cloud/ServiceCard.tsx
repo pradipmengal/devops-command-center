@@ -16,13 +16,19 @@
  *   - Tier badges
  *   - Responsive layout
  *   - Hover effects
+ *   - Dynamic OS and Storage selection for Compute instances
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Server, HardDrive, Cpu, MemoryStick, DollarSign, MapPin, Tag, Info, GitCompare, CheckCircle } from 'lucide-react';
 
 const ServiceCard = ({ service, viewMode = 'grid', onAddToCompare, isInComparison = false }) => {
   const [showDetails, setShowDetails] = useState(false);
+  
+  // OS and Storage state for Compute instances
+  const isCompute = service.category?.toLowerCase().includes('compute') || service.category?.toLowerCase().includes('vm');
+  const [selectedOs, setSelectedOs] = useState('Linux');
+  const [storageGb, setStorageGb] = useState(0);
 
   const getProviderColor = (provider) => {
     const colors = {
@@ -70,14 +76,78 @@ const ServiceCard = ({ service, viewMode = 'grid', onAddToCompare, isInCompariso
     }
   };
 
-  const calculateMonthlyPrice = () => {
+  // Calculate dynamic pricing based on OS and Storage
+  const calculatedPricing = useMemo(() => {
+    const basePrice = service.price_usd;
     const unit = service.unit.toLowerCase();
+    
+    // OS Multipliers (approximate for estimation)
+    const osMultipliers = {
+      'Linux': 1.0,
+      'Windows': 1.4,
+      'RHEL': 1.2
+    };
+    const multiplier = osMultipliers[selectedOs] || 1.0;
+    
+    // Storage cost: ~$0.08 per GB/month for standard SSD (gp3)
+    const storagePricePerGbMonth = 0.08;
+    const monthlyStorageCost = storageGb * storagePricePerGbMonth;
+    
+    let hourlyPrice = basePrice * multiplier;
+    let monthlyPrice = null;
+    
     if (unit.includes('hour')) {
-      return service.price_usd * 730; // Average hours per month
+      monthlyPrice = (hourlyPrice * 730) + monthlyStorageCost; // Average hours per month
     } else if (unit.includes('month')) {
-      return service.price_usd;
+      monthlyPrice = (basePrice * multiplier) + monthlyStorageCost;
+      hourlyPrice = monthlyPrice / 730;
     }
-    return null;
+    
+    return { hourlyPrice, monthlyPrice };
+  }, [service.price_usd, service.unit, selectedOs, storageGb]);
+
+  const renderConfigOptions = () => {
+    if (!isCompute) return null;
+
+    return (
+      <div className="space-y-3 mb-4 pb-4 border-b border-white/10">
+        {/* OS Selection */}
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-white/60 flex items-center gap-1">
+            <Server className="w-3 h-3" />
+            OS
+          </span>
+          <select
+            value={selectedOs}
+            onChange={(e) => setSelectedOs(e.target.value)}
+            className="bg-white/10 border border-white/20 rounded px-2 py-1 text-white text-xs focus:outline-none focus:border-blue-400/50"
+          >
+            <option value="Linux">Linux</option>
+            <option value="Windows">Windows</option>
+            <option value="RHEL">RHEL</option>
+          </select>
+        </div>
+
+        {/* Storage Selection */}
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-white/60 flex items-center gap-1">
+            <HardDrive className="w-3 h-3" />
+            Storage
+          </span>
+          <div className="flex items-center gap-1">
+            <input
+              type="number"
+              min="0"
+              max="10000"
+              value={storageGb}
+              onChange={(e) => setStorageGb(Math.max(0, parseInt(e.target.value) || 0))}
+              className="w-16 bg-white/10 border border-white/20 rounded px-2 py-1 text-white text-xs focus:outline-none focus:border-blue-400/50 text-right"
+            />
+            <span className="text-white/60 text-xs">GB</span>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   if (viewMode === 'list') {
@@ -99,7 +169,7 @@ const ServiceCard = ({ service, viewMode = 'grid', onAddToCompare, isInCompariso
                   {service.tier_label}
                 </span>
               </div>
-              <div className="flex items-center gap-4 text-sm text-white/60">
+              <div className="flex items-center gap-4 text-sm text-white/60 flex-wrap">
                 <span className="flex items-center gap-1">
                   <Tag className="w-3 h-3" />
                   {service.category}
@@ -123,18 +193,44 @@ const ServiceCard = ({ service, viewMode = 'grid', onAddToCompare, isInCompariso
                   </span>
                 )}
               </div>
+              
+              {/* Inline Config Options for List View */}
+              {isCompute && (
+                <div className="flex items-center gap-4 mt-2 text-sm">
+                  <select
+                    value={selectedOs}
+                    onChange={(e) => setSelectedOs(e.target.value)}
+                    className="bg-white/10 border border-white/20 rounded px-2 py-1 text-white text-xs focus:outline-none focus:border-blue-400/50"
+                  >
+                    <option value="Linux">Linux</option>
+                    <option value="Windows">Windows</option>
+                    <option value="RHEL">RHEL</option>
+                  </select>
+                  <div className="flex items-center gap-1">
+                    <HardDrive className="w-3 h-3 text-white/60" />
+                    <input
+                      type="number"
+                      min="0"
+                      value={storageGb}
+                      onChange={(e) => setStorageGb(Math.max(0, parseInt(e.target.value) || 0))}
+                      className="w-14 bg-white/10 border border-white/20 rounded px-2 py-1 text-white text-xs focus:outline-none focus:border-blue-400/50 text-right"
+                    />
+                    <span className="text-white/60 text-xs">GB</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
-            {/* Right: Pricing */}
+          {/* Right: Pricing */}
           <div className="text-right">
             <div className="text-2xl font-bold text-white mb-1">
-              ${formatPrice(service.price_usd)}
+              ${formatPrice(calculatedPricing.hourlyPrice)}
             </div>
             <div className="text-xs text-white/60">{service.unit}</div>
-            {calculateMonthlyPrice() && (
+            {calculatedPricing.monthlyPrice && (
               <div className="text-sm text-blue-300 mt-1">
-                ~${calculateMonthlyPrice().toFixed(2)}/mo
+                ~${calculatedPricing.monthlyPrice.toFixed(2)}/mo
               </div>
             )}
           </div>
@@ -185,8 +281,11 @@ const ServiceCard = ({ service, viewMode = 'grid', onAddToCompare, isInCompariso
         <span className="truncate">{service.category}</span>
       </div>
 
-      {/* Specifications */}
-      {(service.vcpu || service.memory_gb || service.storage_gb) && (
+      {/* Dynamic Config Options for Compute */}
+      {renderConfigOptions()}
+
+      {/* Static Specifications (if not compute, or additional specs) */}
+      {!isCompute && (service.vcpu || service.memory_gb || service.storage_gb) && (
         <div className="space-y-2 mb-4 pb-4 border-b border-white/10">
           {service.vcpu && (
             <div className="flex items-center justify-between text-sm">
@@ -231,20 +330,20 @@ const ServiceCard = ({ service, viewMode = 'grid', onAddToCompare, isInCompariso
         <div className="flex items-baseline gap-1 mb-1">
           <DollarSign className="w-4 h-4 text-white/60" />
           <span className="text-2xl font-bold text-white">
-            {formatPrice(service.price_usd)}
+            {formatPrice(calculatedPricing.hourlyPrice)}
           </span>
         </div>
         <div className="text-xs text-white/60 mb-2">{service.unit}</div>
         
-        {calculateMonthlyPrice() && (
+        {calculatedPricing.monthlyPrice && (
           <div className="text-sm text-blue-300 font-medium">
-            ~${calculateMonthlyPrice().toFixed(2)}/month
+            ~${calculatedPricing.monthlyPrice.toFixed(2)}/month
           </div>
         )}
       </div>
 
       {/* Action buttons */}
-      <div className="mt-auto pt-4 flex gap-2">
+      <div className="mt-4 pt-4 border-t border-white/10 flex gap-2">
         {onAddToCompare && (
           <button
             onClick={(e) => { e.stopPropagation(); onAddToCompare(service); }}

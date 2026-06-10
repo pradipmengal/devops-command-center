@@ -25,6 +25,7 @@ import CicdPage      from './pages/CicdPage'
 import AiErrorPage   from './pages/AiErrorPage'
 import AiDockerPage  from './pages/AiDockerPage'
 import AiChatPage    from './pages/AiChatPage'
+import AIOptimizationCenter from './pages/AIOptimizationCenter'
 
 // Cloud tools
 import CloudCostPage from './pages/CloudCostPage'
@@ -96,6 +97,7 @@ function MainLayout() {
             <Route path="/ai-error"   element={<AiErrorPage />} />
             <Route path="/ai-docker"  element={<AiDockerPage />} />
             <Route path="/ai-chat"    element={<AiChatPage />} />
+            <Route path="/ai-optimization" element={<AIOptimizationCenter />} />
             {/* Cloud */}
             <Route path="/cloud-cost" element={<CloudCostPage />} />
             {/* Docker Intelligence Center */}

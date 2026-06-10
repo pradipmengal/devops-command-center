@@ -133,3 +133,23 @@ def get_masked_gcp_client_email() -> Optional[str]:
         masked_name = name[:4] + "****" + name[-4:] if len(name) > 8 else "****"
         return f"{masked_name}@{domain}"
     return "****"
+
+
+def delete_aws_credentials() -> bool:
+    """Deletes AWS credentials from local config file."""
+    try:
+        if AWS_SETTINGS_FILE.exists():
+            AWS_SETTINGS_FILE.unlink()
+        return True
+    except IOError:
+        return False
+
+
+def delete_gcp_credentials() -> bool:
+    """Deletes GCP credentials from local config file."""
+    try:
+        if GCP_SETTINGS_FILE.exists():
+            GCP_SETTINGS_FILE.unlink()
+        return True
+    except IOError:
+        return False
