@@ -2,11 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Globe, RefreshCw, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import PriceStatusBadge from './PriceStatusBadge';
 
-const PROVIDER_NAMES = { aws: 'AWS', azure: 'Azure', gcp: 'GCP' };
-const PROVIDER_COLORS = { aws: 'from-orange-500 to-orange-600', azure: 'from-blue-500 to-blue-600', gcp: 'from-red-500 to-red-600' };
-const PROVIDER_LOGOS = { aws: '☁️', azure: '🔷', gcp: '🌐' };
+const PROVIDER_NAMES = { aws: 'AWS', azure: 'Azure', gcp: 'GCP', tata_cloud: 'Tata Cloud', jio_cloud: 'Jio Cloud', yotta: 'Yotta', nxtgen: 'NxtGen' };
+const PROVIDER_COLORS = { aws: 'from-orange-500 to-orange-600', azure: 'from-blue-500 to-blue-600', gcp: 'from-red-500 to-red-600', tata_cloud: 'from-purple-500 to-purple-700', jio_cloud: 'from-green-500 to-green-700', yotta: 'from-amber-500 to-amber-700', nxtgen: 'from-cyan-500 to-cyan-700' };
+const PROVIDER_LOGOS = { aws: '☁️', azure: '🔷', gcp: '🌐', tata_cloud: '🟣', jio_cloud: '🟢', yotta: '🟠', nxtgen: '🔵' };
 
-const RegionalPriceComparison = ({ selectedProviders = ['aws', 'azure', 'gcp'], className = '' }) => {
+const RegionalPriceComparison = ({ selectedProviders = ['aws', 'azure', 'gcp', 'tata_cloud', 'jio_cloud', 'yotta', 'nxtgen'], className = '' }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);

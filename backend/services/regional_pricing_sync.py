@@ -19,6 +19,12 @@ from typing import Optional, List
 
 import httpx
 
+from services.cloud_pricing_sync import (
+    _INDIAN_BASE_PRICES,
+    _JIO_BASE_PRICES,
+    _YOTTA_BASE_PRICES,
+    _NXTGEN_BASE_PRICES,
+)
 from services.infracost_client import InfracostClient
 from services.settings import get_infracost_api_key, is_infracost_configured
 
@@ -105,10 +111,18 @@ GCP_REGION_MULTIPLIERS = {
     "northamerica-northeast1": 1.000,
 }
 
+INDIAN_REGION_MULTIPLIERS = {
+    "ap-south-1": 1.000, "ap-south-2": 1.000, "ap-south-3": 1.000,
+}
+
 ALL_MULTIPLIERS = {
     "aws": AWS_REGION_MULTIPLIERS,
     "azure": AZURE_REGION_MULTIPLIERS,
     "gcp": GCP_REGION_MULTIPLIERS,
+    "tata_cloud": INDIAN_REGION_MULTIPLIERS,
+    "jio_cloud": INDIAN_REGION_MULTIPLIERS,
+    "yotta": INDIAN_REGION_MULTIPLIERS,
+    "nxtgen": INDIAN_REGION_MULTIPLIERS,
 }
 
 # ── Base (default region) prices used as fallback ─────────────────────────────
@@ -201,6 +215,10 @@ BASE_PRICES = {
     "aws": AWS_BASE_PRICES,
     "azure": AZURE_BASE_PRICES,
     "gcp": GCP_BASE_PRICES,
+    "tata_cloud": _INDIAN_BASE_PRICES,
+    "jio_cloud": _JIO_BASE_PRICES,
+    "yotta": _YOTTA_BASE_PRICES,
+    "nxtgen": _NXTGEN_BASE_PRICES,
 }
 
 # ── Live pricing via Infracost API (primary) ──────────────────────────────────
@@ -224,6 +242,10 @@ PROVIDER_VENDOR_MAP = {
     "aws": "aws",
     "azure": "azure",
     "gcp": "gcp",
+    "tata_cloud": "tata_cloud",
+    "jio_cloud": "jio_cloud",
+    "yotta": "yotta",
+    "nxtgen": "nxtgen",
 }
 
 
@@ -329,6 +351,11 @@ async def fetch_live_prices_for_provider(
         except Exception:
             for region in regions:
                 result[region] = {}
+
+    elif provider in ("tata_cloud", "jio_cloud", "yotta", "nxtgen"):
+        # Indian providers have no live API — all prices are fallback
+        for region in regions:
+            result[region] = {}
 
     return result
 
@@ -439,7 +466,7 @@ async def get_all_regional_prices(
     Returns {provider: {region: {category: {...}}}.
     """
     if providers is None:
-        providers = ["aws", "azure", "gcp"]
+        providers = ["aws", "azure", "gcp", "tata_cloud", "jio_cloud", "yotta", "nxtgen"]
 
     results = await asyncio.gather(
         *[get_regional_prices(p, regions) for p in providers],

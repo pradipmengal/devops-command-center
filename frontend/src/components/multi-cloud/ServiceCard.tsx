@@ -37,7 +37,11 @@ const ServiceCard = ({ service, viewMode = 'grid', onAddToCompare, isInCompariso
       gcp: 'from-red-500 to-red-600',
       oci: 'from-red-600 to-orange-600',
       digitalocean: 'from-blue-400 to-blue-500',
-      alibaba: 'from-orange-400 to-orange-500'
+      alibaba: 'from-orange-400 to-orange-500',
+      tata_cloud: 'from-purple-500 to-purple-700',
+      jio_cloud: 'from-green-500 to-green-700',
+      yotta: 'from-amber-500 to-amber-700',
+      nxtgen: 'from-cyan-500 to-cyan-700'
     };
     return colors[provider] || 'from-gray-500 to-gray-600';
   };
@@ -49,7 +53,11 @@ const ServiceCard = ({ service, viewMode = 'grid', onAddToCompare, isInCompariso
       gcp: '🌐',
       oci: '🔶',
       digitalocean: '🌊',
-      alibaba: '🐘'
+      alibaba: '🐘',
+      tata_cloud: '🟣',
+      jio_cloud: '🟢',
+      yotta: '🟠',
+      nxtgen: '🔵'
     };
     return logos[provider] || '☁️';
   };

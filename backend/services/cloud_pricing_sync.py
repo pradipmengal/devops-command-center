@@ -324,6 +324,127 @@ async def fetch_gcp_prices(client: httpx.AsyncClient) -> list:
 
 # ── Static fallback ───────────────────────────────────────────────────────────
 
+_INDIAN_BASE_PRICES = {
+    "Compute (VMs)": ("Tata Compute t2.small", "per hour", "On-Demand", 0.028),
+    "Managed Kubernetes": ("Tata Managed K8s", "per hour", "On-Demand", 0.07),
+    "Object Storage": ("Tata Object Store", "per GB/month", "On-Demand", 0.015),
+    "Managed Databases": ("Tata Managed DB", "per hour", "On-Demand", 0.045),
+    "Container Registry": ("Tata Container Registry", "per GB/month", "On-Demand", 0.06),
+    "Load Balancers": ("Tata Load Balancer", "per hour", "On-Demand", 0.005),
+    "Serverless Functions": ("Tata Functions", "per million invocations", "On-Demand", 0.12),
+    "CDN": ("Tata Edge CDN", "per GB egress", "On-Demand", 0.005),
+    "VPC / Networking": ("Tata Virtual Cloud", "per hour", "On-Demand", 0.03),
+    "Networking Egress": ("Tata Data Transfer Out", "per GB", "On-Demand", 0.06),
+    "Managed Cache": ("Tata Cache Service", "per hour", "On-Demand", 0.012),
+    "Messaging & Queues": ("Tata Message Queue", "per million messages", "On-Demand", 0.25),
+    "Managed Kafka / Streaming": ("Tata Streams", "per hour", "On-Demand", 0.14),
+    "Block Storage (Disks)": ("Tata Block Storage", "per GB/month", "On-Demand", 0.05),
+    "Monitoring & Logging": ("Tata Monitor", "per GB ingested", "On-Demand", 0.30),
+    "Secret Management": ("Tata Secrets Vault", "per secret/month", "On-Demand", 0.25),
+    "Data Warehousing": ("Tata Data Warehouse", "per hour", "On-Demand", 0.15),
+    "DNS": ("Tata DNS", "per hosted zone/month", "On-Demand", 0.30),
+    "Email / Notifications": ("Tata Email Service", "per million emails", "On-Demand", 0.06),
+    "API Gateway": ("Tata API Gateway", "per million API calls", "On-Demand", 2.00),
+    "Container Orchestration (Serverless)": ("Tata Serverless Containers", "per vCPU/hour", "On-Demand", 0.025),
+    "Identity & Access (IAM)": ("Tata IAM", "per MAU", "On-Demand", 0.0035),
+    "CI/CD Pipeline": ("Tata CI/CD Pipeline", "per pipeline/month", "On-Demand", 0.60),
+    "Artifact / Package Registry": ("Tata Artifact Registry", "per GB/month", "On-Demand", 0.03),
+    "Machine Learning Platform": ("Tata ML Platform", "per hour", "On-Demand", 0.18),
+    "Backup & Disaster Recovery": ("Tata Backup Service", "per GB/month", "On-Demand", 0.03),
+    "File Storage (NFS/SMB)": ("Tata File Storage", "per GB/month", "On-Demand", 0.20),
+}
+
+_JIO_BASE_PRICES = {
+    "Compute (VMs)": ("Jio Compute Standard", "per hour", "On-Demand", 0.025),
+    "Managed Kubernetes": ("Jio Container Service", "per hour", "On-Demand", 0.06),
+    "Object Storage": ("Jio Drive Storage", "per GB/month", "On-Demand", 0.012),
+    "Managed Databases": ("Jio Managed Database", "per hour", "On-Demand", 0.04),
+    "Container Registry": ("Jio Container Hub", "per GB/month", "On-Demand", 0.05),
+    "Load Balancers": ("Jio Load Balancer", "per hour", "On-Demand", 0.004),
+    "Serverless Functions": ("Jio Functions", "per million invocations", "On-Demand", 0.10),
+    "CDN": ("Jio CDN", "per GB egress", "On-Demand", 0.004),
+    "VPC / Networking": ("Jio Virtual Private Cloud", "per hour", "On-Demand", 0.025),
+    "Networking Egress": ("Jio Data Transfer", "per GB", "On-Demand", 0.05),
+    "Managed Cache": ("Jio Cache", "per hour", "On-Demand", 0.010),
+    "Messaging & Queues": ("Jio Message Queue", "per million messages", "On-Demand", 0.20),
+    "Managed Kafka / Streaming": ("Jio Streams", "per hour", "On-Demand", 0.12),
+    "Block Storage (Disks)": ("Jio Block Disk", "per GB/month", "On-Demand", 0.04),
+    "Monitoring & Logging": ("Jio Observe", "per GB ingested", "On-Demand", 0.25),
+    "Secret Management": ("Jio Secrets", "per secret/month", "On-Demand", 0.20),
+    "Data Warehousing": ("Jio Data Warehouse", "per hour", "On-Demand", 0.12),
+    "DNS": ("Jio DNS", "per hosted zone/month", "On-Demand", 0.25),
+    "Email / Notifications": ("Jio Email", "per million emails", "On-Demand", 0.05),
+    "API Gateway": ("Jio API Gateway", "per million API calls", "On-Demand", 1.50),
+    "Container Orchestration (Serverless)": ("Jio Serverless Containers", "per vCPU/hour", "On-Demand", 0.02),
+    "Identity & Access (IAM)": ("Jio Identity", "per MAU", "On-Demand", 0.003),
+    "CI/CD Pipeline": ("Jio Pipeline", "per pipeline/month", "On-Demand", 0.50),
+    "Artifact / Package Registry": ("Jio Package Registry", "per GB/month", "On-Demand", 0.025),
+    "Machine Learning Platform": ("Jio AI Platform", "per hour", "On-Demand", 0.15),
+    "Backup & Disaster Recovery": ("Jio Backup", "per GB/month", "On-Demand", 0.025),
+    "File Storage (NFS/SMB)": ("Jio File Share", "per GB/month", "On-Demand", 0.15),
+}
+
+_YOTTA_BASE_PRICES = {
+    "Compute (VMs)": ("Yotta Compute Unit", "per hour", "On-Demand", 0.032),
+    "Managed Kubernetes": ("Yotta Managed K8s", "per hour", "On-Demand", 0.08),
+    "Object Storage": ("Yotta Object Storage", "per GB/month", "On-Demand", 0.018),
+    "Managed Databases": ("Yotta Managed DB", "per hour", "On-Demand", 0.05),
+    "Container Registry": ("Yotta Container Registry", "per GB/month", "On-Demand", 0.07),
+    "Load Balancers": ("Yotta Load Balancer", "per hour", "On-Demand", 0.006),
+    "Serverless Functions": ("Yotta Functions", "per million invocations", "On-Demand", 0.15),
+    "CDN": ("Yotta CDN", "per GB egress", "On-Demand", 0.006),
+    "VPC / Networking": ("Yotta Virtual Network", "per hour", "On-Demand", 0.035),
+    "Networking Egress": ("Yotta Egress", "per GB", "On-Demand", 0.07),
+    "Managed Cache": ("Yotta Cache", "per hour", "On-Demand", 0.014),
+    "Messaging & Queues": ("Yotta Message Queue", "per million messages", "On-Demand", 0.30),
+    "Managed Kafka / Streaming": ("Yotta Streams", "per hour", "On-Demand", 0.16),
+    "Block Storage (Disks)": ("Yotta Block Store", "per GB/month", "On-Demand", 0.06),
+    "Monitoring & Logging": ("Yotta Monitor", "per GB ingested", "On-Demand", 0.35),
+    "Secret Management": ("Yotta Vault", "per secret/month", "On-Demand", 0.30),
+    "Data Warehousing": ("Yotta Data Warehouse", "per hour", "On-Demand", 0.18),
+    "DNS": ("Yotta DNS", "per hosted zone/month", "On-Demand", 0.35),
+    "Email / Notifications": ("Yotta Email", "per million emails", "On-Demand", 0.07),
+    "API Gateway": ("Yotta API Gateway", "per million API calls", "On-Demand", 2.50),
+    "Container Orchestration (Serverless)": ("Yotta Serverless Containers", "per vCPU/hour", "On-Demand", 0.03),
+    "Identity & Access (IAM)": ("Yotta IAM", "per MAU", "On-Demand", 0.004),
+    "CI/CD Pipeline": ("Yotta CI/CD", "per pipeline/month", "On-Demand", 0.75),
+    "Artifact / Package Registry": ("Yotta Artifact Registry", "per GB/month", "On-Demand", 0.04),
+    "Machine Learning Platform": ("Yotta ML", "per hour", "On-Demand", 0.20),
+    "Backup & Disaster Recovery": ("Yotta DR Backup", "per GB/month", "On-Demand", 0.04),
+    "File Storage (NFS/SMB)": ("Yotta File Store", "per GB/month", "On-Demand", 0.22),
+}
+
+_NXTGEN_BASE_PRICES = {
+    "Compute (VMs)": ("NxtGen VM Basic", "per hour", "On-Demand", 0.030),
+    "Managed Kubernetes": ("NxtGen Managed K8s", "per hour", "On-Demand", 0.075),
+    "Object Storage": ("NxtGen Object Store", "per GB/month", "On-Demand", 0.016),
+    "Managed Databases": ("NxtGen Managed DB", "per hour", "On-Demand", 0.048),
+    "Container Registry": ("NxtGen Container Registry", "per GB/month", "On-Demand", 0.065),
+    "Load Balancers": ("NxtGen Load Balancer", "per hour", "On-Demand", 0.0055),
+    "Serverless Functions": ("NxtGen Functions", "per million invocations", "On-Demand", 0.14),
+    "CDN": ("NxtGen CDN", "per GB egress", "On-Demand", 0.0055),
+    "VPC / Networking": ("NxtGen Virtual Cloud", "per hour", "On-Demand", 0.032),
+    "Networking Egress": ("NxtGen Data Transfer", "per GB", "On-Demand", 0.065),
+    "Managed Cache": ("NxtGen Cache", "per hour", "On-Demand", 0.013),
+    "Messaging & Queues": ("NxtGen Message Queue", "per million messages", "On-Demand", 0.28),
+    "Managed Kafka / Streaming": ("NxtGen Streams", "per hour", "On-Demand", 0.15),
+    "Block Storage (Disks)": ("NxtGen Block Storage", "per GB/month", "On-Demand", 0.055),
+    "Monitoring & Logging": ("NxtGen Monitor", "per GB ingested", "On-Demand", 0.32),
+    "Secret Management": ("NxtGen Secrets", "per secret/month", "On-Demand", 0.28),
+    "Data Warehousing": ("NxtGen Warehouse", "per hour", "On-Demand", 0.16),
+    "DNS": ("NxtGen DNS", "per hosted zone/month", "On-Demand", 0.32),
+    "Email / Notifications": ("NxtGen Email", "per million emails", "On-Demand", 0.065),
+    "API Gateway": ("NxtGen API Gateway", "per million API calls", "On-Demand", 2.20),
+    "Container Orchestration (Serverless)": ("NxtGen Serverless Containers", "per vCPU/hour", "On-Demand", 0.028),
+    "Identity & Access (IAM)": ("NxtGen IAM", "per MAU", "On-Demand", 0.0038),
+    "CI/CD Pipeline": ("NxtGen CI/CD", "per pipeline/month", "On-Demand", 0.70),
+    "Artifact / Package Registry": ("NxtGen Artifact Store", "per GB/month", "On-Demand", 0.035),
+    "Machine Learning Platform": ("NxtGen ML", "per hour", "On-Demand", 0.19),
+    "Backup & Disaster Recovery": ("NxtGen Backup", "per GB/month", "On-Demand", 0.035),
+    "File Storage (NFS/SMB)": ("NxtGen File Share", "per GB/month", "On-Demand", 0.20),
+}
+
+
 def _get_static_fallback() -> list:
     """Return the full static dataset as a list of ServiceEntry dicts."""
     aws = [_make_entry("aws", cat, sn, u, p, t, price_status="fallback") for cat, (sn, u, t, p) in AWS_BULK_PRICES.items()]
@@ -360,7 +481,12 @@ def _get_static_fallback() -> list:
     }
     azure = [_make_entry("azure", cat, sn, u, p, t, price_status="fallback") for cat, (sn, u, t, p) in azure_static.items()]
 
-    return aws + azure + gcp
+    tata = [_make_entry("tata_cloud", cat, sn, u, p, t, price_status="fallback") for cat, (sn, u, t, p) in _INDIAN_BASE_PRICES.items()]
+    jio = [_make_entry("jio_cloud", cat, sn, u, p, t, price_status="fallback") for cat, (sn, u, t, p) in _JIO_BASE_PRICES.items()]
+    yotta = [_make_entry("yotta", cat, sn, u, p, t, price_status="fallback") for cat, (sn, u, t, p) in _YOTTA_BASE_PRICES.items()]
+    nxtgen = [_make_entry("nxtgen", cat, sn, u, p, t, price_status="fallback") for cat, (sn, u, t, p) in _NXTGEN_BASE_PRICES.items()]
+
+    return aws + azure + gcp + tata + jio + yotta + nxtgen
 
 
 # ── Main public API ───────────────────────────────────────────────────────────
@@ -519,6 +645,22 @@ def map_to_logical_category(service_name: str) -> str:
     return "Other"
 
 
+def _search_static_indian(provider_id: str, query: str) -> list:
+    """Search static Indian provider data for matching services."""
+    price_map = {
+        "tata_cloud": _INDIAN_BASE_PRICES,
+        "jio_cloud": _JIO_BASE_PRICES,
+        "yotta": _YOTTA_BASE_PRICES,
+        "nxtgen": _NXTGEN_BASE_PRICES,
+    }.get(provider_id, {})
+    lower = query.lower() if query else ""
+    results = []
+    for cat, (sn, u, t, p) in price_map.items():
+        if not lower or lower in cat.lower() or lower in sn.lower():
+            results.append(_make_entry(provider_id, cat, sn, u, p, t, price_status="fallback"))
+    return results
+
+
 # ── Per-query search cache ────────────────────────────────────────────────────
 
 # Task 14.4: module-level search cache keyed by "{query.lower()}:{sorted_providers}"
@@ -654,6 +796,12 @@ async def search_prices(query: str, providers: list[str]) -> dict:
     if "gcp" in provider_set:
         tasks.append(_gcp_search())
         task_labels.append("gcp")
+
+    # Indian providers: search static fallback data
+    indian_providers = {"tata_cloud", "jio_cloud", "yotta", "nxtgen"}
+    for p in provider_set & indian_providers:
+        tasks.append(_search_static_indian(p, query))
+        task_labels.append(p)
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
 

@@ -135,7 +135,14 @@ const ServiceCatalog = ({
         const pagination = data.data.pagination;
         setHasMore(pagination.page < pagination.total_pages);
       } else {
-        setError(data.message || 'Failed to load services');
+        // Check for provider-not-found errors and show a friendlier message
+        const msg = data.message || '';
+        if (msg.includes('not found in registry')) {
+          const missing = msg.match(/'([^']+)'/)?.[1] || 'provider';
+          setError(`Backend does not recognize "${missing}". Restart the backend server to pick up new providers.`);
+        } else {
+          setError(msg);
+        }
       }
     } catch (err) {
       if (err.name !== 'AbortError') {

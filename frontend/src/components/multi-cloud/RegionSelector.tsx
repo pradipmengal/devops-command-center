@@ -107,7 +107,11 @@ const RegionSelector = ({
       gcp: 'GCP',
       oci: 'Oracle Cloud',
       digitalocean: 'DigitalOcean',
-      alibaba: 'Alibaba Cloud'
+      alibaba: 'Alibaba Cloud',
+      tata_cloud: 'Tata Cloud',
+      jio_cloud: 'Jio Cloud',
+      yotta: 'Yotta',
+      nxtgen: 'NxtGen'
     };
     return names[providerId] || providerId.toUpperCase();
   };

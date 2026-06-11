@@ -30,7 +30,11 @@ const ComparisonChart = ({ services = [] }) => {
       gcp: '#EA4335',
       oci: '#F80000',
       digitalocean: '#0080FF',
-      alibaba: '#FF6A00'
+      alibaba: '#FF6A00',
+      tata_cloud: '#A855F7',
+      jio_cloud: '#22C55E',
+      yotta: '#F59E0B',
+      nxtgen: '#06B6D4'
     };
     return colors[provider] || '#6B7280';
   };

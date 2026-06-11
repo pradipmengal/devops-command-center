@@ -30,6 +30,34 @@ const STATIC_PROVIDERS = [
     api_version: '1.0',
     rate_limit: 15,
     enabled: true
+  },
+  {
+    provider_id: 'tata_cloud',
+    provider_name: 'Tata Cloud',
+    api_version: '1.0',
+    rate_limit: 5,
+    enabled: true
+  },
+  {
+    provider_id: 'jio_cloud',
+    provider_name: 'Jio Cloud',
+    api_version: '1.0',
+    rate_limit: 5,
+    enabled: true
+  },
+  {
+    provider_id: 'yotta',
+    provider_name: 'Yotta Infrastructure',
+    api_version: '1.0',
+    rate_limit: 5,
+    enabled: true
+  },
+  {
+    provider_id: 'nxtgen',
+    provider_name: 'NxtGen Data Centers',
+    api_version: '1.0',
+    rate_limit: 5,
+    enabled: true
   }
 ];
 
@@ -39,7 +67,11 @@ const PROVIDER_LOGOS = {
   gcp: '🌐',
   oci: '🔶',
   digitalocean: '🌊',
-  alibaba: '🐘'
+  alibaba: '🐘',
+  tata_cloud: '🟣',
+  jio_cloud: '🟢',
+  yotta: '🟠',
+  nxtgen: '🔵'
 };
 
 const PROVIDER_COLORS = {
@@ -48,7 +80,11 @@ const PROVIDER_COLORS = {
   gcp: 'from-red-500 to-red-600',
   oci: 'from-red-600 to-orange-600',
   digitalocean: 'from-blue-400 to-blue-500',
-  alibaba: 'from-orange-400 to-orange-500'
+  alibaba: 'from-orange-400 to-orange-500',
+  tata_cloud: 'from-purple-500 to-purple-700',
+  jio_cloud: 'from-green-500 to-green-700',
+  yotta: 'from-amber-500 to-amber-700',
+  nxtgen: 'from-cyan-500 to-cyan-700'
 };
 
 const ProviderSelector = ({
@@ -80,7 +116,15 @@ const ProviderSelector = ({
       
       const data = await response.json();
       if (data.status === 'success' && data.data.providers?.length > 0) {
-        setProviders(data.data.providers);
+        // Merge API providers with static fallback so Indian providers are always present
+        const apiIds = new Set(data.data.providers.map(p => p.provider_id));
+        const merged = [...data.data.providers];
+        STATIC_PROVIDERS.forEach(sp => {
+          if (!apiIds.has(sp.provider_id)) {
+            merged.push(sp);
+          }
+        });
+        setProviders(merged);
       }
       // If API returns empty, keep static fallback
     } catch (err) {

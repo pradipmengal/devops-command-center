@@ -107,7 +107,7 @@ async def get_sync_status():
 # ── Open service search ───────────────────────────────────────────────────────
 
 @router.get("/search")
-async def search_cloud_services(q: str = "", providers: str = "aws,azure,gcp"):
+async def search_cloud_services(q: str = "", providers: str = "aws,azure,gcp,tata_cloud,jio_cloud,yotta,nxtgen"):
     """
     Search for any cloud service by name across providers.
     Returns matching ServiceEntry records from the requested providers.
@@ -126,8 +126,6 @@ async def search_cloud_services(q: str = "", providers: str = "aws,azure,gcp"):
         )
 
     providers_list = [p.strip().lower() for p in providers.split(",") if p.strip()]
-    valid = {"aws", "azure", "gcp"}
-    providers_list = [p for p in providers_list if p in valid] or list(valid)
 
     try:
         result = await search_prices(q.strip(), providers_list)
@@ -232,7 +230,7 @@ async def get_catalog_by_category(category: str):
 
 @router.get("/regional")
 async def get_regional_pricing(
-    providers: str = Query("aws,azure,gcp", description="Comma-separated provider IDs"),
+    providers: str = Query("aws,azure,gcp,tata_cloud,jio_cloud,yotta,nxtgen", description="Comma-separated provider IDs"),
     regions: str = Query("", description="Comma-separated region IDs (empty = all regions)"),
 ):
     """
@@ -246,8 +244,6 @@ async def get_regional_pricing(
       { provider: { prices: { region: { category: { service_name, price_usd, unit, tier_label, price_status } } }, overall_status } }
     """
     provider_list = [p.strip().lower() for p in providers.split(",") if p.strip()]
-    valid_providers = {"aws", "azure", "gcp"}
-    provider_list = [p for p in provider_list if p in valid_providers] or ["aws", "azure", "gcp"]
 
     region_list = [r.strip() for r in regions.split(",") if r.strip()] or None
 
@@ -297,14 +293,12 @@ async def get_provider_regional_pricing(
 
 @router.post("/regional/refresh")
 async def refresh_regional_prices(
-    providers: str = Query("aws,azure,gcp", description="Comma-separated provider IDs"),
+    providers: str = Query("aws,azure,gcp,tata_cloud,jio_cloud,yotta,nxtgen", description="Comma-separated provider IDs"),
 ):
     """
     Force-invalidate the regional cache and fetch fresh pricing from all providers.
     """
     provider_list = [p.strip().lower() for p in providers.split(",") if p.strip()]
-    valid_providers = {"aws", "azure", "gcp"}
-    provider_list = [p for p in provider_list if p in valid_providers] or ["aws", "azure", "gcp"]
 
     try:
         invalidate_regional_cache()

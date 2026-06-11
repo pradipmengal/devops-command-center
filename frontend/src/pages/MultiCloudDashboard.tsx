@@ -761,7 +761,7 @@ const MultiCloudDashboard = () => {
 
           {activeTab === 'regional' && (
             <RegionalPriceComparison
-              selectedProviders={selectedProviders.length > 0 ? selectedProviders : ['aws', 'azure', 'gcp']}
+              selectedProviders={selectedProviders.length > 0 ? selectedProviders : ['aws', 'azure', 'gcp', 'tata_cloud', 'jio_cloud', 'yotta', 'nxtgen']}
             />
           )}
 
