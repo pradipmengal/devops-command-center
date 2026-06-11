@@ -264,6 +264,8 @@ const MultiCloudDashboard = () => {
   }, [gcpJsonContent, gcpTestStatus]);
 
   const handleRemoveAwsCredentials = useCallback(async () => {
+    setAwsSaveStatus('saving');
+    setAwsSaveMessage('');
     try {
       const resp = await fetch('/api/settings/aws-credentials', { method: 'DELETE' });
       if (resp.ok) {
@@ -272,15 +274,27 @@ const MultiCloudDashboard = () => {
         setAwsSecretKey('');
         setAwsTestStatus(null);
         setAwsTestMessage('');
-        setAwsSaveStatus(null);
-        setAwsSaveMessage('');
+        setAwsSaveStatus('success');
+        setAwsSaveMessage('AWS credentials removed successfully!');
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+          setAwsSaveStatus(null);
+          setAwsSaveMessage('');
+        }, 3000);
+      } else {
+        const data = await resp.json().catch(() => ({}));
+        setAwsSaveStatus('error');
+        setAwsSaveMessage(data.detail || `Failed to remove (HTTP ${resp.status}). Please restart the backend.`);
       }
     } catch (err: any) {
-      console.error('Failed to remove AWS credentials:', err);
+      setAwsSaveStatus('error');
+      setAwsSaveMessage(`Network error: ${err.message}`);
     }
   }, []);
 
   const handleRemoveGcpCredentials = useCallback(async () => {
+    setGcpSaveStatus('saving');
+    setGcpSaveMessage('');
     try {
       const resp = await fetch('/api/settings/gcp-credentials', { method: 'DELETE' });
       if (resp.ok) {
@@ -288,11 +302,21 @@ const MultiCloudDashboard = () => {
         setGcpJsonContent('');
         setGcpTestStatus(null);
         setGcpTestMessage('');
-        setGcpSaveStatus(null);
-        setGcpSaveMessage('');
+        setGcpSaveStatus('success');
+        setGcpSaveMessage('GCP credentials removed successfully!');
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+          setGcpSaveStatus(null);
+          setGcpSaveMessage('');
+        }, 3000);
+      } else {
+        const data = await resp.json().catch(() => ({}));
+        setGcpSaveStatus('error');
+        setGcpSaveMessage(data.detail || `Failed to remove (HTTP ${resp.status}). Please restart the backend.`);
       }
     } catch (err: any) {
-      console.error('Failed to remove GCP credentials:', err);
+      setGcpSaveStatus('error');
+      setGcpSaveMessage(`Network error: ${err.message}`);
     }
   }, []);
 
